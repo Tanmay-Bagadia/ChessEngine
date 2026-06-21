@@ -20,6 +20,7 @@ const U64 FILE_H = 0x8080808080808080ULL;
 const U64 RANK_4 = 0xFF000000ULL;
 
 U64 knight_attacks[64];
+U64 king_attacks[64];
 
 void generate_moves(Position &pos, std::vector<Move> &move_list)
 {
@@ -41,20 +42,40 @@ void init_leapers()
 {
     for (int square = 0; square < 64; square++)
     {
+        // KNIGHT
         U64 knight = 1ULL << square;
 
         // EAST JUMPS
-        U64 jump_NNE = (knight << 17) & ~FILE_A;            // Up 2, Right 1
-        U64 jump_EEN = (knight << 10) & ~(FILE_A | FILE_B); // Up 1, Right 2
-        U64 jump_EES = (knight >> 6) & ~(FILE_A | FILE_B);  // Down 1, Right 2
-        U64 jump_SSE = (knight >> 15) & ~FILE_A;            // Down 2, Right 1
+        U64 knight_NNE = (knight << 17) & ~FILE_A;            // Up 2, Right 1
+        U64 knight_EEN = (knight << 10) & ~(FILE_A | FILE_B); // Up 1, Right 2
+        U64 knight_EES = (knight >> 6) & ~(FILE_A | FILE_B);  // Down 1, Right 2
+        U64 knight_SSE = (knight >> 15) & ~FILE_A;            // Down 2, Right 1
 
         // WEST JUMPS
-        U64 jump_NNW = (knight << 15) & ~FILE_H;            // Up 2, Left 1
-        U64 jump_WWN = (knight << 6) & ~(FILE_G | FILE_H);  // Up 1, Left 2
-        U64 jump_WWS = (knight >> 10) & ~(FILE_G | FILE_H); // Down 1, Left 2
-        U64 jump_SSW = (knight >> 17) & ~FILE_H;            // Down 2, Left 1
+        U64 knight_NNW = (knight << 15) & ~FILE_H;            // Up 2, Left 1
+        U64 knight_WWN = (knight << 6) & ~(FILE_G | FILE_H);  // Up 1, Left 2
+        U64 knight_WWS = (knight >> 10) & ~(FILE_G | FILE_H); // Down 1, Left 2
+        U64 knight_SSW = (knight >> 17) & ~FILE_H;            // Down 2, Left 1
 
-        knight_attacks[square] = jump_NNE | jump_EEN | jump_EES | jump_SSE | jump_NNW | jump_WWN | jump_WWS | jump_SSW;
+        knight_attacks[square] = knight_NNE | knight_EEN | knight_EES | knight_SSE | knight_NNW | knight_WWN | knight_WWS | knight_SSW;
+
+        // KING
+        U64 king = 1ULL << square;
+
+        // VERTICAL JUMPS
+        U64 jump_N = (king << 8);
+        U64 jump_S = (king >> 8);
+
+        // EAST JUMPS
+        U64 jump_E = (king << 1) & ~FILE_A;
+        U64 jump_NE = (king << 9) & ~FILE_A;
+        U64 jump_SE = (king >> 7) & ~FILE_A;
+
+        // WEST JUMPS
+        U64 jump_W = (king >> 1) & ~FILE_H;
+        U64 jump_NW = (king << 7) & ~FILE_H;
+        U64 jump_SW = (king >> 9) & ~FILE_H;
+
+        king_attacks[square] = jump_N | jump_S | jump_E | jump_W | jump_NE | jump_NW | jump_SE | jump_SW;
     }
 }
