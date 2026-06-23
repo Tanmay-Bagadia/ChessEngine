@@ -21,6 +21,8 @@ const U64 RANK_4 = 0xFF000000ULL;
 
 U64 knight_attacks[64];
 U64 king_attacks[64];
+U64 rook_masks[64];
+U64 bishop_masks[64];
 
 void generate_moves(Position &pos, std::vector<Move> &move_list)
 {
@@ -78,4 +80,72 @@ void init_leapers()
 
         king_attacks[square] = jump_N | jump_S | jump_E | jump_W | jump_NE | jump_NW | jump_SE | jump_SW;
     }
+}
+
+void init_sliders()
+{
+    for (int square = 0; square < 64; square++)
+    {
+        rook_masks[square] = mask_rook_attacks(square);
+        bishop_masks[square] = mask_bishop_attacks(square);
+    }
+}
+
+U64 mask_rook_attacks(int square)
+{
+    int file = square % 8;
+    int rank = square / 8;
+
+    U64 mask = 0ULL;
+
+    for (int curr_rank = rank + 1; curr_rank < 7; curr_rank++)
+    {
+        mask |= 1ULL << (curr_rank * 8 + file);
+    }
+
+    for (int curr_rank = rank - 1; curr_rank > 0; curr_rank--)
+    {
+        mask |= 1ULL << (curr_rank * 8 + file);
+    }
+
+    for (int curr_file = file + 1; curr_file < 7; curr_file++)
+    {
+        mask |= 1ULL << (rank * 8 + curr_file);
+    }
+
+    for (int curr_file = file - 1; curr_file > 0; curr_file--)
+    {
+        mask |= 1ULL << (rank * 8 + curr_file);
+    }
+
+    return mask;
+}
+U64 mask_bishop_attacks(int square)
+{
+    int file = square % 8;
+    int rank = square / 8;
+
+    U64 mask = 0ULL;
+
+    for (int curr_rank = rank + 1, curr_file = file + 1; curr_rank < 7 && curr_file < 7; curr_rank++, curr_file++)
+    {
+        mask |= 1ULL << (curr_rank * 8 + curr_file);
+    }
+
+    for (int curr_rank = rank - 1, curr_file = file + 1; curr_rank > 0 && curr_file < 7; curr_rank--, curr_file++)
+    {
+        mask |= 1ULL << (curr_rank * 8 + curr_file);
+    }
+
+    for (int curr_rank = rank + 1, curr_file = file - 1; curr_rank < 7 && curr_file > 0; curr_rank++, curr_file--)
+    {
+        mask |= 1ULL << (curr_rank * 8 + curr_file);
+    }
+
+    for (int curr_rank = rank - 1, curr_file = file - 1; curr_rank > 0 && curr_file > 0; curr_rank--, curr_file--)
+    {
+        mask |= 1ULL << (curr_rank * 8 + curr_file);
+    }
+
+    return mask;
 }
