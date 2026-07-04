@@ -28,5 +28,5 @@ inline bool get_bit(U64 bitboard, int square)
         return false;
     }
 }
-
+void print_bitboard(U64 board);
 #endif

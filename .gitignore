@@ -1,0 +1,4 @@
+*.md
+engine_src/engine
+*.o
+.vscode/
