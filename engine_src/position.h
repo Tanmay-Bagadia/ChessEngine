@@ -1,11 +1,18 @@
+#pragma once
 #include "bitboard.h"
+
+enum Color { WHITE = 0, BLACK = 1, BOTH = 2 };
+enum PieceType { PAWN = 0, KNIGHT = 1, BISHOP = 2, ROOK = 3, QUEEN = 4, KING = 5 };
+enum Castling { WK = 1, WQ = 2, BK = 4, BQ = 8 };
 
 struct Position
 {
-    U64 white_pawns, white_knights, white_bishops, white_queens, white_rooks, white_king,
-        black_pawns, black_knights, black_bishops, black_queens, black_rooks, black_king;
-
-    U64 white_occupancy, black_occupancy, master_occupancy;
+    U64 pieces[2][6];   // pieces[Color][PieceType]
+    U64 occupancy[3];   // occupancy[WHITE], occupancy[BLACK], occupancy[BOTH]
+    
+    int side_to_move;
+    int castling_rights;
+    int en_passant_square;
 };
 
 void init_position(Position &pos);

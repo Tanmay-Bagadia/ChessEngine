@@ -164,13 +164,13 @@ U64 bishop_masks[64];
 
 void generate_moves(Position &pos, std::vector<Move> &move_list)
 {
-    // PAWNS
-    U64 valid_single_pushes = (pos.white_pawns << 8) & ~pos.master_occupancy;
-    U64 valid_double_pushes = (valid_single_pushes << 8) & ~pos.master_occupancy & RANK_4;
+    // PAWNS (White for now)
+    U64 valid_single_pushes = (pos.pieces[WHITE][PAWN] << 8) & ~pos.occupancy[BOTH];
+    U64 valid_double_pushes = (valid_single_pushes << 8) & ~pos.occupancy[BOTH] & RANK_4;
 
-    // prevention  of warping of pawns
-    U64 valid_capture_east = (pos.white_pawns << 9) & ~FILE_A & pos.black_occupancy;
-    U64 valid_capture_west = (pos.white_pawns << 7) & ~FILE_H & pos.black_occupancy;
+    // prevention of warping of pawns
+    U64 valid_capture_east = (pos.pieces[WHITE][PAWN] << 9) & ~FILE_A & pos.occupancy[BLACK];
+    U64 valid_capture_west = (pos.pieces[WHITE][PAWN] << 7) & ~FILE_H & pos.occupancy[BLACK];
 
     serialize_pawn_moves(valid_single_pushes, 8, 0, move_list);
     serialize_pawn_moves(valid_double_pushes, 16, 1, move_list);
