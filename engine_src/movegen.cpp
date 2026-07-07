@@ -5,12 +5,10 @@
 
 inline void serialize_pawn_moves(U64 board, int offset, int flag, std::vector<Move> &move_list)
 {
-
     while (board > 0)
     {
-        int to = __builtin_ctzll(board);
+        int to = pop_lsb(board);
         move_list.push_back(encode_move(to - offset, to, flag));
-        clear_bit(board, to);
     }
 }
 
@@ -131,29 +129,8 @@ const U64 FILE_A = 0x0101010101010101ULL;
 const U64 FILE_B = 0x0202020202020202ULL;
 const U64 FILE_G = 0x4040404040404040ULL;
 const U64 FILE_H = 0x8080808080808080ULL;
-const U64 RANK_4 = 0xFF000000ULL;
-
-// // Number of relevant bits in each rook mask (by square, a1=0, h8=63)
-// const int rook_relevant_bits[64] = {
-//     12, 11, 11, 11, 11, 11, 11, 12,
-//     11, 10, 10, 10, 10, 10, 10, 11,
-//     11, 10, 10, 10, 10, 10, 10, 11,
-//     11, 10, 10, 10, 10, 10, 10, 11,
-//     11, 10, 10, 10, 10, 10, 10, 11,
-//     11, 10, 10, 10, 10, 10, 10, 11,
-//     11, 10, 10, 10, 10, 10, 10, 11,
-//     12, 11, 11, 11, 11, 11, 11, 12};
-
-// // Number of relevant bits in each bishop mask
-// const int bishop_relevant_bits[64] = {
-//     6, 5, 5, 5, 5, 5, 5, 6,
-//     5, 5, 5, 5, 5, 5, 5, 5,
-//     5, 5, 7, 7, 7, 7, 5, 5,
-//     5, 5, 7, 9, 9, 7, 5, 5,
-//     5, 5, 7, 9, 9, 7, 5, 5,
-//     5, 5, 7, 7, 7, 7, 5, 5,
-//     5, 5, 5, 5, 5, 5, 5, 5,
-//     6, 5, 5, 5, 5, 5, 5, 6};
+const U64 RANK_4 = 0x00000000FF000000ULL;
+const U64 RANK_5 = 0x000000FF00000000ULL;
 
 U64 knight_attacks[64];
 U64 king_attacks[64];
@@ -164,18 +141,144 @@ U64 bishop_masks[64];
 
 void generate_moves(Position &pos, std::vector<Move> &move_list)
 {
-    // PAWNS (White for now)
-    U64 valid_single_pushes = (pos.pieces[WHITE][PAWN] << 8) & ~pos.occupancy[BOTH];
-    U64 valid_double_pushes = (valid_single_pushes << 8) & ~pos.occupancy[BOTH] & RANK_4;
+    int side = pos.side_to_move;
+    int enemy = side ^ 1;
 
-    // prevention of warping of pawns
-    U64 valid_capture_east = (pos.pieces[WHITE][PAWN] << 9) & ~FILE_A & pos.occupancy[BLACK];
-    U64 valid_capture_west = (pos.pieces[WHITE][PAWN] << 7) & ~FILE_H & pos.occupancy[BLACK];
+    // 1. PAWN MOVES
+    U64 pawns = pos.pieces[side][PAWN];
+    if (side == WHITE)
+    {
+        U64 valid_single_pushes = (pawns << 8) & ~pos.occupancy[BOTH];
+        U64 valid_double_pushes = (valid_single_pushes << 8) & ~pos.occupancy[BOTH] & RANK_4;
+        U64 valid_capture_east = (pawns << 9) & ~FILE_A & pos.occupancy[BLACK];
+        U64 valid_capture_west = (pawns << 7) & ~FILE_H & pos.occupancy[BLACK];
 
-    serialize_pawn_moves(valid_single_pushes, 8, 0, move_list);
-    serialize_pawn_moves(valid_double_pushes, 16, 1, move_list);
-    serialize_pawn_moves(valid_capture_east, 9, 4, move_list);
-    serialize_pawn_moves(valid_capture_west, 7, 4, move_list);
+        serialize_pawn_moves(valid_single_pushes, 8, QUIET, move_list);
+        serialize_pawn_moves(valid_double_pushes, 16, DOUBLE_PUSH, move_list);
+        serialize_pawn_moves(valid_capture_east, 9, CAPTURE, move_list);
+        serialize_pawn_moves(valid_capture_west, 7, CAPTURE, move_list);
+    }
+    else
+    {
+        U64 valid_single_pushes = (pawns >> 8) & ~pos.occupancy[BOTH];
+        U64 valid_double_pushes = (valid_single_pushes >> 8) & ~pos.occupancy[BOTH] & RANK_5;
+        U64 valid_capture_east = (pawns >> 7) & ~FILE_A & pos.occupancy[WHITE];
+        U64 valid_capture_west = (pawns >> 9) & ~FILE_H & pos.occupancy[WHITE];
+
+        serialize_pawn_moves(valid_single_pushes, -8, QUIET, move_list);
+        serialize_pawn_moves(valid_double_pushes, -16, DOUBLE_PUSH, move_list);
+        serialize_pawn_moves(valid_capture_east, -7, CAPTURE, move_list);
+        serialize_pawn_moves(valid_capture_west, -9, CAPTURE, move_list);
+    }
+
+    // 2. KNIGHT MOVES
+    U64 knights = pos.pieces[side][KNIGHT];
+    while (knights != 0)
+    {
+        int from_square = pop_lsb(knights);
+        U64 attacks = knight_attacks[from_square] & ~pos.occupancy[side];
+
+        while (attacks != 0)
+        {
+            int to_square = pop_lsb(attacks);
+
+            if (pos.occupancy[enemy] & (1ULL << to_square))
+            {
+                move_list.push_back(encode_move(from_square, to_square, CAPTURE));
+            }
+            else
+            {
+                move_list.push_back(encode_move(from_square, to_square, QUIET));
+            }
+        }
+    }
+
+    // 3. KING MOVES (non-castling)
+    U64 king = pos.pieces[side][KING];
+    while (king != 0)
+    {
+        int from_square = pop_lsb(king);
+        U64 attacks = king_attacks[from_square] & ~pos.occupancy[side];
+
+        while (attacks != 0)
+        {
+            int to_square = pop_lsb(attacks);
+
+            if (pos.occupancy[enemy] & (1ULL << to_square))
+            {
+                move_list.push_back(encode_move(from_square, to_square, CAPTURE));
+            }
+            else
+            {
+                move_list.push_back(encode_move(from_square, to_square, QUIET));
+            }
+        }
+    }
+
+    // 4. BISHOP MOVES
+    U64 bishops = pos.pieces[side][BISHOP];
+    while (bishops != 0)
+    {
+        int from_square = pop_lsb(bishops);
+        U64 attacks = get_bishop_attacks(from_square, pos.occupancy[BOTH]) & ~pos.occupancy[side];
+
+        while (attacks != 0)
+        {
+            int to_square = pop_lsb(attacks);
+
+            if (pos.occupancy[enemy] & (1ULL << to_square))
+            {
+                move_list.push_back(encode_move(from_square, to_square, CAPTURE));
+            }
+            else
+            {
+                move_list.push_back(encode_move(from_square, to_square, QUIET));
+            }
+        }
+    }
+    // 5. ROOK MOVES
+    U64 rooks = pos.pieces[side][ROOK];
+    while (rooks != 0)
+    {
+        int from_square = pop_lsb(rooks);
+        U64 attacks = get_rook_attacks(from_square, pos.occupancy[BOTH]) & ~pos.occupancy[side];
+
+        while (attacks != 0)
+        {
+            int to_square = pop_lsb(attacks);
+
+            if (pos.occupancy[enemy] & (1ULL << to_square))
+            {
+                move_list.push_back(encode_move(from_square, to_square, CAPTURE));
+            }
+            else
+            {
+                move_list.push_back(encode_move(from_square, to_square, QUIET));
+            }
+        }
+    }
+
+    // 6. QUEEN MOVES
+    U64 queens = pos.pieces[side][QUEEN];
+    while (queens != 0)
+    {
+        int from_square = pop_lsb(queens);
+        U64 attacks = get_queen_attacks(from_square, pos.occupancy[BOTH]) & ~pos.occupancy[side];
+
+        while (attacks != 0)
+        {
+            int to_square = pop_lsb(attacks);
+
+            if (pos.occupancy[enemy] & (1ULL << to_square))
+            {
+                move_list.push_back(encode_move(from_square, to_square, CAPTURE));
+            }
+            else
+            {
+                move_list.push_back(encode_move(from_square, to_square, QUIET));
+            }
+        }
+    }
 }
 
 void init_leapers()

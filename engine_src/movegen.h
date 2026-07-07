@@ -18,6 +18,24 @@ inline Move encode_move(int from, int to, int flag)
 {
     return (flag << 12) | (to << 6) | from;
 }
+enum MoveFlag
+{
+    QUIET = 0,
+    DOUBLE_PUSH = 1,
+    K_CASTLE = 2,
+    Q_CASTLE = 3,
+    CAPTURE = 4,
+    EP_CAPTURE = 5,
+
+    N_PROMO = 8,
+    B_PROMO = 9,
+    R_PROMO = 10,
+    Q_PROMO = 11,
+    N_PROMO_CAP = 12,
+    B_PROMO_CAP = 13,
+    R_PROMO_CAP = 14,
+    Q_PROMO_CAP = 15
+};
 inline U64 get_bishop_attacks(int square, U64 occupancy)
 {
     occupancy &= bishop_masks[square];
