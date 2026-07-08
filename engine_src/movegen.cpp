@@ -12,6 +12,30 @@ inline void serialize_pawn_moves(U64 board, int offset, int flag, std::vector<Mo
     }
 }
 
+inline void serialize_promotions(U64 board, int offset, int flag, std::vector<Move> &move_list)
+{
+    while (board > 0)
+    {
+        int to = pop_lsb(board);
+        int from = to - offset;
+
+        if (flag == CAPTURE)
+        {
+            move_list.push_back(encode_move(from, to, Q_PROMO_CAP));
+            move_list.push_back(encode_move(from, to, R_PROMO_CAP));
+            move_list.push_back(encode_move(from, to, B_PROMO_CAP));
+            move_list.push_back(encode_move(from, to, N_PROMO_CAP));
+        }
+        else
+        {
+            move_list.push_back(encode_move(from, to, Q_PROMO));
+            move_list.push_back(encode_move(from, to, R_PROMO));
+            move_list.push_back(encode_move(from, to, B_PROMO));
+            move_list.push_back(encode_move(from, to, N_PROMO));
+        }
+    }
+}
+
 U64 set_occupancy(int index, int bits_in_mask, U64 attack_mask)
 {
 
@@ -131,6 +155,8 @@ const U64 FILE_G = 0x4040404040404040ULL;
 const U64 FILE_H = 0x8080808080808080ULL;
 const U64 RANK_4 = 0x00000000FF000000ULL;
 const U64 RANK_5 = 0x000000FF00000000ULL;
+const U64 RANK_1 = 0x00000000000000FFULL;
+const U64 RANK_8 = 0xFF00000000000000ULL;
 
 U64 knight_attacks[64];
 U64 king_attacks[64];
@@ -146,29 +172,98 @@ void generate_moves(Position &pos, std::vector<Move> &move_list)
 
     // 1. PAWN MOVES
     U64 pawns = pos.pieces[side][PAWN];
+
+    if (pos.en_passant_square != -1)
+    {
+        int ep_sq = pos.en_passant_square;
+
+        if (side == WHITE)
+        {
+            U64 ep_board = (1ULL << ep_sq);
+
+            U64 attackers_east = (ep_board >> 9) & pawns & ~FILE_H;
+            U64 attackers_west = (ep_board >> 7) & pawns & ~FILE_A;
+
+            if (attackers_east != 0)
+            {
+                move_list.push_back(encode_move(ep_sq - 9, ep_sq, EP_CAPTURE));
+            }
+            if (attackers_west != 0)
+            {
+                move_list.push_back(encode_move(ep_sq - 7, ep_sq, EP_CAPTURE));
+            }
+        }
+        else
+        {
+            U64 ep_board = (1ULL << ep_sq);
+
+            U64 attackers_east = (ep_board << 7) & pawns & ~FILE_H;
+            U64 attackers_west = (ep_board << 9) & pawns & ~FILE_A;
+
+            if (attackers_east != 0)
+            {
+                move_list.push_back(encode_move(ep_sq + 7, ep_sq, EP_CAPTURE));
+            }
+            if (attackers_west != 0)
+            {
+                move_list.push_back(encode_move(ep_sq + 9, ep_sq, EP_CAPTURE));
+            }
+        }
+    }
+
     if (side == WHITE)
     {
         U64 valid_single_pushes = (pawns << 8) & ~pos.occupancy[BOTH];
-        U64 valid_double_pushes = (valid_single_pushes << 8) & ~pos.occupancy[BOTH] & RANK_4;
-        U64 valid_capture_east = (pawns << 9) & ~FILE_A & pos.occupancy[BLACK];
-        U64 valid_capture_west = (pawns << 7) & ~FILE_H & pos.occupancy[BLACK];
+        U64 promo_pushes = valid_single_pushes & RANK_8;
+        U64 non_promo_pushes = valid_single_pushes & ~RANK_8;
 
-        serialize_pawn_moves(valid_single_pushes, 8, QUIET, move_list);
+        U64 valid_double_pushes = (valid_single_pushes << 8) & ~pos.occupancy[BOTH] & RANK_4;
+
+        U64 valid_capture_east = (pawns << 9) & ~FILE_A & pos.occupancy[BLACK];
+        U64 promo_captures_east = valid_capture_east & RANK_8;
+        U64 non_promo_captures_east = valid_capture_east & ~RANK_8;
+
+        U64 valid_capture_west = (pawns << 7) & ~FILE_H & pos.occupancy[BLACK];
+        U64 promo_captures_west = valid_capture_west & RANK_8;
+        U64 non_promo_captures_west = valid_capture_west & ~RANK_8;
+
+        serialize_pawn_moves(non_promo_pushes, 8, QUIET, move_list);
+        serialize_promotions(promo_pushes, 8, QUIET, move_list);
+
         serialize_pawn_moves(valid_double_pushes, 16, DOUBLE_PUSH, move_list);
-        serialize_pawn_moves(valid_capture_east, 9, CAPTURE, move_list);
-        serialize_pawn_moves(valid_capture_west, 7, CAPTURE, move_list);
+
+        serialize_pawn_moves(non_promo_captures_east, 9, CAPTURE, move_list);
+        serialize_promotions(promo_captures_east, 9, CAPTURE, move_list);
+
+        serialize_pawn_moves(non_promo_captures_west, 7, CAPTURE, move_list);
+        serialize_promotions(promo_captures_west, 7, CAPTURE, move_list);
     }
     else
     {
         U64 valid_single_pushes = (pawns >> 8) & ~pos.occupancy[BOTH];
-        U64 valid_double_pushes = (valid_single_pushes >> 8) & ~pos.occupancy[BOTH] & RANK_5;
-        U64 valid_capture_east = (pawns >> 7) & ~FILE_A & pos.occupancy[WHITE];
-        U64 valid_capture_west = (pawns >> 9) & ~FILE_H & pos.occupancy[WHITE];
+        U64 promo_pushes = valid_single_pushes & RANK_1;
+        U64 non_promo_pushes = valid_single_pushes & ~RANK_1;
 
-        serialize_pawn_moves(valid_single_pushes, -8, QUIET, move_list);
+        U64 valid_double_pushes = (valid_single_pushes >> 8) & ~pos.occupancy[BOTH] & RANK_5;
+
+        U64 valid_capture_east = (pawns >> 7) & ~FILE_A & pos.occupancy[WHITE];
+        U64 promo_captures_east = valid_capture_east & RANK_1;
+        U64 non_promo_captures_east = valid_capture_east & ~RANK_1;
+
+        U64 valid_capture_west = (pawns >> 9) & ~FILE_H & pos.occupancy[WHITE];
+        U64 promo_captures_west = valid_capture_west & RANK_1;
+        U64 non_promo_captures_west = valid_capture_west & ~RANK_1;
+
+        serialize_pawn_moves(non_promo_pushes, -8, QUIET, move_list);
+        serialize_promotions(promo_pushes, -8, QUIET, move_list);
+
         serialize_pawn_moves(valid_double_pushes, -16, DOUBLE_PUSH, move_list);
-        serialize_pawn_moves(valid_capture_east, -7, CAPTURE, move_list);
-        serialize_pawn_moves(valid_capture_west, -9, CAPTURE, move_list);
+
+        serialize_pawn_moves(non_promo_captures_east, -7, CAPTURE, move_list);
+        serialize_promotions(promo_captures_east, -7, CAPTURE, move_list);
+
+        serialize_pawn_moves(non_promo_captures_west, -9, CAPTURE, move_list);
+        serialize_promotions(promo_captures_west, -9, CAPTURE, move_list);
     }
 
     // 2. KNIGHT MOVES
@@ -236,6 +331,7 @@ void generate_moves(Position &pos, std::vector<Move> &move_list)
             }
         }
     }
+
     // 5. ROOK MOVES
     U64 rooks = pos.pieces[side][ROOK];
     while (rooks != 0)
@@ -283,218 +379,218 @@ void generate_moves(Position &pos, std::vector<Move> &move_list)
 
 void init_leapers()
 {
-    for (int square = 0; square < 64; square++)
-    {
-        // KNIGHT
-        U64 knight = 1ULL << square;
-
-        // EAST JUMPS
-        U64 knight_NNE = (knight << 17) & ~FILE_A;            // Up 2, Right 1
-        U64 knight_EEN = (knight << 10) & ~(FILE_A | FILE_B); // Up 1, Right 2
-        U64 knight_EES = (knight >> 6) & ~(FILE_A | FILE_B);  // Down 1, Right 2
-        U64 knight_SSE = (knight >> 15) & ~FILE_A;            // Down 2, Right 1
-
-        // WEST JUMPS
-        U64 knight_NNW = (knight << 15) & ~FILE_H;            // Up 2, Left 1
-        U64 knight_WWN = (knight << 6) & ~(FILE_G | FILE_H);  // Up 1, Left 2
-        U64 knight_WWS = (knight >> 10) & ~(FILE_G | FILE_H); // Down 1, Left 2
-        U64 knight_SSW = (knight >> 17) & ~FILE_H;            // Down 2, Left 1
-
-        knight_attacks[square] = knight_NNE | knight_EEN | knight_EES | knight_SSE | knight_NNW | knight_WWN | knight_WWS | knight_SSW;
-
-        // KING
-        U64 king = 1ULL << square;
-
-        // VERTICAL JUMPS
-        U64 jump_N = (king << 8);
-        U64 jump_S = (king >> 8);
-
-        // EAST JUMPS
-        U64 jump_E = (king << 1) & ~FILE_A;
-        U64 jump_NE = (king << 9) & ~FILE_A;
-        U64 jump_SE = (king >> 7) & ~FILE_A;
-
-        // WEST JUMPS
-        U64 jump_W = (king >> 1) & ~FILE_H;
-        U64 jump_NW = (king << 7) & ~FILE_H;
-        U64 jump_SW = (king >> 9) & ~FILE_H;
-
-        king_attacks[square] = jump_N | jump_S | jump_E | jump_W | jump_NE | jump_NW | jump_SE | jump_SW;
-    }
-}
-
-U64 mask_rook_attacks(int square)
-{
-    int file = square % 8;
-    int rank = square / 8;
-
-    U64 mask = 0ULL;
-
-    for (int curr_rank = rank + 1; curr_rank < 7; curr_rank++)
-    {
-        mask |= 1ULL << (curr_rank * 8 + file);
-    }
-
-    for (int curr_rank = rank - 1; curr_rank > 0; curr_rank--)
-    {
-        mask |= 1ULL << (curr_rank * 8 + file);
-    }
-
-    for (int curr_file = file + 1; curr_file < 7; curr_file++)
-    {
-        mask |= 1ULL << (rank * 8 + curr_file);
-    }
-
-    for (int curr_file = file - 1; curr_file > 0; curr_file--)
-    {
-        mask |= 1ULL << (rank * 8 + curr_file);
-    }
-
-    return mask;
-}
-U64 mask_bishop_attacks(int square)
-{
-    int file = square % 8;
-    int rank = square / 8;
-
-    U64 mask = 0ULL;
-
-    for (int curr_rank = rank + 1, curr_file = file + 1; curr_rank < 7 && curr_file < 7; curr_rank++, curr_file++)
-    {
-        mask |= 1ULL << (curr_rank * 8 + curr_file);
-    }
-
-    for (int curr_rank = rank - 1, curr_file = file + 1; curr_rank > 0 && curr_file < 7; curr_rank--, curr_file++)
-    {
-        mask |= 1ULL << (curr_rank * 8 + curr_file);
-    }
-
-    for (int curr_rank = rank + 1, curr_file = file - 1; curr_rank < 7 && curr_file > 0; curr_rank++, curr_file--)
-    {
-        mask |= 1ULL << (curr_rank * 8 + curr_file);
-    }
-
-    for (int curr_rank = rank - 1, curr_file = file - 1; curr_rank > 0 && curr_file > 0; curr_rank--, curr_file--)
-    {
-        mask |= 1ULL << (curr_rank * 8 + curr_file);
-    }
-
-    return mask;
-}
-
-unsigned int random_state = 1804289383; // seed for generating pseudo-random numbers
-
-unsigned int random_u32()
-{
-    // Xorshift algorithm by George Marsaglia - proven to produce good random numbers
-    unsigned int number = random_state;
-
-    number ^= number << 13;
-    number ^= number >> 17;
-    number ^= number << 5;
-
-    random_state = number; // scramble the randome state to produce new number
-    return number;
-}
-
-U64 random_u64()
-{
-    U64 num1 = (U64)(random_u32()) & 0xFFFF; // 0xFFFF  is 1111111111111111, this mask only keeps the lowest 16 bits
-    U64 num2 = (U64)(random_u32()) & 0xFFFF; // 0xFFFF  is 1111111111111111, this mask only keeps the lowest 16 bits
-    U64 num3 = (U64)(random_u32()) & 0xFFFF; // 0xFFFF  is 1111111111111111, this mask only keeps the lowest 16 bits
-    U64 num4 = (U64)(random_u32()) & 0xFFFF; // 0xFFFF  is 1111111111111111, this mask only keeps the lowest 16 bits
-
-    return num1 | num2 << 16 | num3 << 32 | num4 << 48;
-}
-
-U64 random_magic_candidate()
-{
-    return random_u64() & random_u64() & random_u64();
-}
-
-U64 rook_magic[64];
-U64 bishop_magic[64];
-
-U64 find_magic_number(int square, bool is_bishop)
-{
-    U64 mask = is_bishop ? bishop_masks[square] : rook_masks[square];
-    int relevant_bits = __builtin_popcountll(mask);
-    int occupancy_cnt = 1 << relevant_bits; // total no. of blocker arrangements
-
-    U64 occupancies[4096];
-    U64 attacks[4096];
-
-    for (int i = 0; i < occupancy_cnt; i++)
-    {
-        occupancies[i] = set_occupancy(i, relevant_bits, mask);
-        attacks[i] = is_bishop ? bishop_attacks_on_the_fly(square, occupancies[i]) : rook_attacks_on_the_fly(square, occupancies[i]);
-    }
-
-    for (int trials = 0; trials < 100000000; trials++)
-    {
-        U64 candidate = random_magic_candidate();
-
-        // Quick filter: skip candidates that don't spread bits well
-        if (__builtin_popcountll((mask * candidate) & 0xFF00000000000000ULL) < 6)
+        for (int square = 0; square < 64; square++)
         {
-            continue;
+            // KNIGHT
+            U64 knight = 1ULL << square;
+
+            // EAST JUMPS
+            U64 knight_NNE = (knight << 17) & ~FILE_A;            // Up 2, Right 1
+            U64 knight_EEN = (knight << 10) & ~(FILE_A | FILE_B); // Up 1, Right 2
+            U64 knight_EES = (knight >> 6) & ~(FILE_A | FILE_B);  // Down 1, Right 2
+            U64 knight_SSE = (knight >> 15) & ~FILE_A;            // Down 2, Right 1
+
+            // WEST JUMPS
+            U64 knight_NNW = (knight << 15) & ~FILE_H;            // Up 2, Left 1
+            U64 knight_WWN = (knight << 6) & ~(FILE_G | FILE_H);  // Up 1, Left 2
+            U64 knight_WWS = (knight >> 10) & ~(FILE_G | FILE_H); // Down 1, Left 2
+            U64 knight_SSW = (knight >> 17) & ~FILE_H;            // Down 2, Left 1
+
+            knight_attacks[square] = knight_NNE | knight_EEN | knight_EES | knight_SSE | knight_NNW | knight_WWN | knight_WWS | knight_SSW;
+
+            // KING
+            U64 king = 1ULL << square;
+
+            // VERTICAL JUMPS
+            U64 jump_N = (king << 8);
+            U64 jump_S = (king >> 8);
+
+            // EAST JUMPS
+            U64 jump_E = (king << 1) & ~FILE_A;
+            U64 jump_NE = (king << 9) & ~FILE_A;
+            U64 jump_SE = (king >> 7) & ~FILE_A;
+
+            // WEST JUMPS
+            U64 jump_W = (king >> 1) & ~FILE_H;
+            U64 jump_NW = (king << 7) & ~FILE_H;
+            U64 jump_SW = (king >> 9) & ~FILE_H;
+
+            king_attacks[square] = jump_N | jump_S | jump_E | jump_W | jump_NE | jump_NW | jump_SE | jump_SW;
+        }
+    }
+
+    U64 mask_rook_attacks(int square)
+    {
+        int file = square % 8;
+        int rank = square / 8;
+
+        U64 mask = 0ULL;
+
+        for (int curr_rank = rank + 1; curr_rank < 7; curr_rank++)
+        {
+            mask |= 1ULL << (curr_rank * 8 + file);
         }
 
-        U64 used[4096] = {};
-        bool failed = false;
+        for (int curr_rank = rank - 1; curr_rank > 0; curr_rank--)
+        {
+            mask |= 1ULL << (curr_rank * 8 + file);
+        }
+
+        for (int curr_file = file + 1; curr_file < 7; curr_file++)
+        {
+            mask |= 1ULL << (rank * 8 + curr_file);
+        }
+
+        for (int curr_file = file - 1; curr_file > 0; curr_file--)
+        {
+            mask |= 1ULL << (rank * 8 + curr_file);
+        }
+
+        return mask;
+    }
+    U64 mask_bishop_attacks(int square)
+    {
+        int file = square % 8;
+        int rank = square / 8;
+
+        U64 mask = 0ULL;
+
+        for (int curr_rank = rank + 1, curr_file = file + 1; curr_rank < 7 && curr_file < 7; curr_rank++, curr_file++)
+        {
+            mask |= 1ULL << (curr_rank * 8 + curr_file);
+        }
+
+        for (int curr_rank = rank - 1, curr_file = file + 1; curr_rank > 0 && curr_file < 7; curr_rank--, curr_file++)
+        {
+            mask |= 1ULL << (curr_rank * 8 + curr_file);
+        }
+
+        for (int curr_rank = rank + 1, curr_file = file - 1; curr_rank < 7 && curr_file > 0; curr_rank++, curr_file--)
+        {
+            mask |= 1ULL << (curr_rank * 8 + curr_file);
+        }
+
+        for (int curr_rank = rank - 1, curr_file = file - 1; curr_rank > 0 && curr_file > 0; curr_rank--, curr_file--)
+        {
+            mask |= 1ULL << (curr_rank * 8 + curr_file);
+        }
+
+        return mask;
+    }
+
+    unsigned int random_state = 1804289383; // seed for generating pseudo-random numbers
+
+    unsigned int random_u32()
+    {
+        // Xorshift algorithm by George Marsaglia - proven to produce good random numbers
+        unsigned int number = random_state;
+
+        number ^= number << 13;
+        number ^= number >> 17;
+        number ^= number << 5;
+
+        random_state = number; // scramble the randome state to produce new number
+        return number;
+    }
+
+    U64 random_u64()
+    {
+        U64 num1 = (U64)(random_u32()) & 0xFFFF; // 0xFFFF  is 1111111111111111, this mask only keeps the lowest 16 bits
+        U64 num2 = (U64)(random_u32()) & 0xFFFF; // 0xFFFF  is 1111111111111111, this mask only keeps the lowest 16 bits
+        U64 num3 = (U64)(random_u32()) & 0xFFFF; // 0xFFFF  is 1111111111111111, this mask only keeps the lowest 16 bits
+        U64 num4 = (U64)(random_u32()) & 0xFFFF; // 0xFFFF  is 1111111111111111, this mask only keeps the lowest 16 bits
+
+        return num1 | num2 << 16 | num3 << 32 | num4 << 48;
+    }
+
+    U64 random_magic_candidate()
+    {
+        return random_u64() & random_u64() & random_u64();
+    }
+
+    U64 rook_magic[64];
+    U64 bishop_magic[64];
+
+    U64 find_magic_number(int square, bool is_bishop)
+    {
+        U64 mask = is_bishop ? bishop_masks[square] : rook_masks[square];
+        int relevant_bits = __builtin_popcountll(mask);
+        int occupancy_cnt = 1 << relevant_bits; // total no. of blocker arrangements
+
+        U64 occupancies[4096];
+        U64 attacks[4096];
 
         for (int i = 0; i < occupancy_cnt; i++)
         {
-            // The magic formula: multiply and shift to get index
-            int index = (int)((occupancies[i] * candidate) >> (64 - relevant_bits));
-
-            if (used[index] == 0ULL)
-            {
-                used[index] = attacks[i];
-            }
-            else if (used[index] != attacks[i])
-            {
-                // Collision — two different attack patterns mapped to same index
-                failed = true;
-                break;
-            }
+            occupancies[i] = set_occupancy(i, relevant_bits, mask);
+            attacks[i] = is_bishop ? bishop_attacks_on_the_fly(square, occupancies[i]) : rook_attacks_on_the_fly(square, occupancies[i]);
         }
 
-        if (!failed)
+        for (int trials = 0; trials < 100000000; trials++)
         {
-            return candidate;
+            U64 candidate = random_magic_candidate();
+
+            // Quick filter: skip candidates that don't spread bits well
+            if (__builtin_popcountll((mask * candidate) & 0xFF00000000000000ULL) < 6)
+            {
+                continue;
+            }
+
+            U64 used[4096] = {};
+            bool failed = false;
+
+            for (int i = 0; i < occupancy_cnt; i++)
+            {
+                // The magic formula: multiply and shift to get index
+                int index = (int)((occupancies[i] * candidate) >> (64 - relevant_bits));
+
+                if (used[index] == 0ULL)
+                {
+                    used[index] = attacks[i];
+                }
+                else if (used[index] != attacks[i])
+                {
+                    // Collision — two different attack patterns mapped to same index
+                    failed = true;
+                    break;
+                }
+            }
+
+            if (!failed)
+            {
+                return candidate;
+            }
         }
+
+        std::cout << "ERROR: no magic candidate found for square: " << square << "\n";
+        return 0ULL;
     }
 
-    std::cout << "ERROR: no magic candidate found for square: " << square << "\n";
-    return 0ULL;
-}
-
-void init_sliders()
-{
-    for (int square = 0; square < 64; square++)
+    void init_sliders()
     {
-
-        rook_masks[square] = mask_rook_attacks(square);
-        bishop_masks[square] = mask_bishop_attacks(square);
-
-        rook_magic[square] = find_magic_number(square, false);
-        bishop_magic[square] = find_magic_number(square, true);
-
-        int rook_bits = __builtin_popcountll(rook_masks[square]);
-        for (int i = 0; i < (1 << rook_bits); i++)
+        for (int square = 0; square < 64; square++)
         {
-            U64 occupancy = set_occupancy(i, rook_bits, rook_masks[square]);
-            int index = (int)((occupancy * rook_magic[square]) >> (64 - rook_bits));
-            rook_attacks[square][index] = rook_attacks_on_the_fly(square, occupancy);
-        }
 
-        int bishop_bits = __builtin_popcountll(bishop_masks[square]);
-        for (int i = 0; i < (1 << bishop_bits); i++)
-        {
-            U64 occupancy = set_occupancy(i, bishop_bits, bishop_masks[square]);
-            int index = (int)((occupancy * bishop_magic[square]) >> (64 - bishop_bits));
-            bishop_attacks[square][index] = bishop_attacks_on_the_fly(square, occupancy);
+            rook_masks[square] = mask_rook_attacks(square);
+            bishop_masks[square] = mask_bishop_attacks(square);
+
+            rook_magic[square] = find_magic_number(square, false);
+            bishop_magic[square] = find_magic_number(square, true);
+
+            int rook_bits = __builtin_popcountll(rook_masks[square]);
+            for (int i = 0; i < (1 << rook_bits); i++)
+            {
+                U64 occupancy = set_occupancy(i, rook_bits, rook_masks[square]);
+                int index = (int)((occupancy * rook_magic[square]) >> (64 - rook_bits));
+                rook_attacks[square][index] = rook_attacks_on_the_fly(square, occupancy);
+            }
+
+            int bishop_bits = __builtin_popcountll(bishop_masks[square]);
+            for (int i = 0; i < (1 << bishop_bits); i++)
+            {
+                U64 occupancy = set_occupancy(i, bishop_bits, bishop_masks[square]);
+                int index = (int)((occupancy * bishop_magic[square]) >> (64 - bishop_bits));
+                bishop_attacks[square][index] = bishop_attacks_on_the_fly(square, occupancy);
+            }
         }
     }
-}
