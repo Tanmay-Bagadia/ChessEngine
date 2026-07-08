@@ -12,6 +12,7 @@ extern U64 rook_magic[64];
 extern U64 bishop_magic[64];
 extern U64 rook_attacks[64][4096];
 extern U64 bishop_attacks[64][512];
+extern U64 pawn_attacks[2][64];
 
 // The bit-packing macro
 inline Move encode_move(int from, int to, int flag)
@@ -60,3 +61,4 @@ void init_leapers();
 void init_sliders();
 
 void generate_moves(Position &pos, std::vector<Move> &move_list);
+bool is_square_attacked(int square, int attacking_side, Position &pos);
