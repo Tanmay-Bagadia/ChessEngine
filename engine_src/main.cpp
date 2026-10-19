@@ -1,6 +1,8 @@
 #include <iostream>
 #include "bitboard.h"
+#include "position.h"
 #include "movegen.h"
+#include "perft.h"
 
 int main()
 {
@@ -20,12 +22,16 @@ int main()
     // MOVE GENERATION TEST
     std::cout << "\n--- MOVE GENERATION TEST (Starting Position) ---\n";
     Position pos;
-    init_position(pos);
+    load_fen(pos, START_FEN);
     print_board(pos);
 
-    std::vector<Move> move_list;
+    MoveList move_list;
     generate_moves(pos, move_list);
     std::cout << "\nTotal moves: " << move_list.size() << " (Expected: 20)\n";
+
+    // PERFT DIVIDE TEST (Depth 1)
+    std::cout << "\n--- PERFT DIVIDE TEST (Starting Position, Depth 1) ---\n";
+    perft_divide(pos, 1);
 
     return 0;
 }

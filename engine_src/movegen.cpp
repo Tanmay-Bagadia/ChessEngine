@@ -3,7 +3,7 @@
 #include <vector>
 #include <iostream>
 
-inline void serialize_pawn_moves(U64 board, int offset, int flag, std::vector<Move> &move_list)
+inline void serialize_pawn_moves(U64 board, int offset, int flag, MoveList &move_list)
 {
     while (board > 0)
     {
@@ -12,7 +12,7 @@ inline void serialize_pawn_moves(U64 board, int offset, int flag, std::vector<Mo
     }
 }
 
-inline void serialize_promotions(U64 board, int offset, int flag, std::vector<Move> &move_list)
+inline void serialize_promotions(U64 board, int offset, int flag, MoveList &move_list)
 {
     while (board > 0)
     {
@@ -166,7 +166,7 @@ U64 pawn_attacks[2][64];
 U64 rook_masks[64];
 U64 bishop_masks[64];
 
-void generate_moves(Position &pos, std::vector<Move> &move_list)
+void generate_moves(Position &pos, MoveList &move_list)
 {
     int side = pos.side_to_move;
     int enemy = side ^ 1;

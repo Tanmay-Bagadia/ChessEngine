@@ -1,8 +1,21 @@
 #pragma once
 #include "position.h"
-#include <vector>
 
 using Move = uint16_t;
+
+struct MoveList
+{
+    Move moves[256];
+    int count = 0;
+    inline void push_back(Move m) { moves[count++] = m; }
+    inline int size() const { return count; }
+    inline Move operator[](int index) const { return moves[index]; }
+    inline Move &operator[](int index) { return moves[index]; }
+    inline Move *begin() { return moves; }
+    inline Move *end() { return moves + count; }
+    inline const Move *begin() const { return moves; }
+    inline const Move *end() const { return moves + count; }
+};
 
 extern U64 knight_attacks[64];
 extern U64 king_attacks[64];
@@ -37,6 +50,20 @@ enum MoveFlag
     R_PROMO_CAP = 14,
     Q_PROMO_CAP = 15
 };
+
+inline int get_from(Move m)
+{
+    return (m & 0x3F);
+}
+inline int get_to(Move m)
+{
+    return ((m >> 6) & 0x3F);
+}
+inline int get_flag(Move m)
+{
+    return ((m >> 12) & 0xF);
+}
+
 inline U64 get_bishop_attacks(int square, U64 occupancy)
 {
     occupancy &= bishop_masks[square];
@@ -60,5 +87,5 @@ inline U64 get_queen_attacks(int square, U64 occupancy)
 void init_leapers();
 void init_sliders();
 
-void generate_moves(Position &pos, std::vector<Move> &move_list);
+void generate_moves(Position &pos, MoveList &move_list);
 bool is_square_attacked(int square, int attacking_side, Position &pos);

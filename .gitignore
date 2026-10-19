@@ -1,4 +1,7 @@
 *.md
+!implementation_plan.md
 engine_src/engine
 *.o
 .vscode/
+build/
+.cache/
