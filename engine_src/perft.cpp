@@ -1,4 +1,6 @@
 #include "perft.h"
+#include "zobrist.h"
+#include <cstdlib>
 #include <iostream>
 #include <chrono>
 #include <vector>
@@ -16,7 +18,6 @@ const char *move_to_uci(Move m)
     s[3] = (char)('1' + (to / 8));
     int len = 4;
 
-    // Handle promotions: flags 8..11 (quiet) and 12..15 (capture)
     if (flag >= 8)
     {
         switch (flag & 3)
@@ -46,8 +47,15 @@ uint64_t perft(Position &pos, int depth)
     {
         Position copy = pos;
         if (!make_move(copy, move_list[i]))
-            continue; // illegal move (e.g. king left in check)
+            continue;
 
+#ifdef HASH_CHECK
+        if (copy.hash != compute_hash(copy))
+        {
+            std::cerr << "HASH MISMATCH after " << move_to_uci(move_list[i]) << "\n";
+            std::abort();
+        }
+#endif
         nodes += perft(copy, depth - 1);
     }
 
@@ -70,7 +78,7 @@ void perft_divide(Position &pos, int depth)
         Move m = move_list[i];
         Position copy = pos;
         if (!make_move(copy, m))
-            continue; // illegal move
+            continue;
 
         uint64_t nodes = (depth == 1) ? 1ULL : perft(copy, depth - 1);
         total_nodes += nodes;
