@@ -30,6 +30,7 @@ set(SOURCES
     engine_src/movegen.cpp
     engine_src/perft.cpp
     engine_src/main.cpp
+    engine_src/zobrist.cpp
 )
 
 add_executable(engine ${SOURCES})
