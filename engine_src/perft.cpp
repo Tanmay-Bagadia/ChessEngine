@@ -7,6 +7,9 @@
 
 const char *move_to_uci(Move m)
 {
+    if (m == 0)
+        return "(none)";
+
     static thread_local char s[6];
     int from = get_from(m);
     int to = get_to(m);

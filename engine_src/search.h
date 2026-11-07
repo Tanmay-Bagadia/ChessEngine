@@ -36,10 +36,10 @@ struct SearchInfo {
     int64_t time_limit_ms;
     int64_t start_time_ms;
 
-    Move killers[MAX_PLY][2];
+    Move killers[MAX_PLY + 1][2];
     int history[2][64][64];
-    Move pv[MAX_PLY][MAX_PLY];
-    int pv_length[MAX_PLY];
+    Move pv[MAX_PLY + 1][MAX_PLY + 1];
+    int pv_length[MAX_PLY + 1];
 
     U64 rep_history[2048];
     int rep_count;
@@ -56,10 +56,10 @@ struct SearchInfo {
         best_move = 0;
         score = 0;
         rep_count = game_ply;
-        for (int i = 0; i < MAX_PLY; i++) {
+        for (int i = 0; i < MAX_PLY + 1; i++) {
             killers[i][0] = killers[i][1] = 0;
             pv_length[i] = 0;
-            for (int j = 0; j < MAX_PLY; j++)
+            for (int j = 0; j < MAX_PLY + 1; j++)
                 pv[i][j] = 0;
         }
         for (int c = 0; c < 2; c++)

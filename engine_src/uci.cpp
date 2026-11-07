@@ -6,11 +6,21 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <thread>
+#include <cctype>
 
 static Position pos;
 static SearchInfo info;
 static U64 game_history[2048];
 static int game_history_count = 0;
+static std::thread search_thread;
+
+static void stop_search()
+{
+    info.stopped = true;
+    if (search_thread.joinable())
+        search_thread.join();
+}
 
 static Move parse_move(Position &pos, const std::string &str)
 {
@@ -30,18 +40,23 @@ static Move parse_move(Position &pos, const std::string &str)
             int flag = get_flag(ml[i]);
             if (flag >= 8)
             {
-                char promo = (str.length() > 4) ? str[4] : 'q';
+                char promo = (str.length() > 4) ? (char)std::tolower(str[4]) : 'q';
                 int promo_piece = (flag & 3);
                 if ((promo == 'n' && promo_piece == 0) ||
                     (promo == 'b' && promo_piece == 1) ||
                     (promo == 'r' && promo_piece == 2) ||
                     (promo == 'q' && promo_piece == 3))
                 {
-                    return ml[i];
+                    Position copy = pos;
+                    if (make_move(copy, ml[i]))
+                        return ml[i];
                 }
                 continue;
             }
-            return ml[i];
+
+            Position copy = pos;
+            if (make_move(copy, ml[i]))
+                return ml[i];
         }
     }
     return 0;
@@ -57,7 +72,6 @@ static void parse_position(std::istringstream &is)
     if (token == "startpos")
     {
         load_fen(pos, START_FEN);
-        is >> token;
     }
     else if (token == "fen")
     {
@@ -85,10 +99,13 @@ static void parse_position(std::istringstream &is)
 
 static void parse_go(std::istringstream &is)
 {
+    stop_search();
+
     std::string token;
     int depth = MAX_PLY;
     int64_t wtime = 0, btime = 0, winc = 0, binc = 0;
     int64_t movetime = 0;
+    int movestogo = 0;
     bool infinite = false;
     int perft_depth = 0;
 
@@ -100,6 +117,7 @@ static void parse_go(std::istringstream &is)
         else if (token == "winc") is >> winc;
         else if (token == "binc") is >> binc;
         else if (token == "movetime") is >> movetime;
+        else if (token == "movestogo") is >> movestogo;
         else if (token == "infinite") infinite = true;
         else if (token == "perft") is >> perft_depth;
     }
@@ -124,7 +142,8 @@ static void parse_go(std::istringstream &is)
 
         if (time_left > 0)
         {
-            info.time_limit_ms = time_left / 30 + inc * 4 / 5;
+            int divisor = (movestogo > 0) ? (movestogo + 2) : 30;
+            info.time_limit_ms = time_left / divisor + inc * 4 / 5;
             if (info.time_limit_ms > time_left - 50)
                 info.time_limit_ms = time_left - 50;
             if (info.time_limit_ms < 1)
@@ -142,7 +161,9 @@ static void parse_go(std::istringstream &is)
         info.rep_history[i] = game_history[i];
     info.rep_count = game_history_count;
 
-    search_position(pos, info);
+    search_thread = std::thread([]() {
+        search_position(pos, info);
+    });
 }
 
 void uci_loop()
@@ -153,7 +174,7 @@ void uci_loop()
     while (std::getline(std::cin, line))
     {
         std::istringstream is(line);
-        is >> token;
+        if (!(is >> token)) continue;
 
         if (token == "uci")
         {
@@ -174,18 +195,22 @@ void uci_loop()
             {
                 if (opt_name == "Hash" && is >> val_tok && val_tok == "value" && is >> val)
                 {
+                    stop_search();
                     init_tt(val);
                 }
             }
         }
         else if (token == "ucinewgame")
         {
+            stop_search();
             clear_tt();
+            info.clear();
             game_history_count = 0;
             load_fen(pos, START_FEN);
         }
         else if (token == "position")
         {
+            stop_search();
             parse_position(is);
         }
         else if (token == "go")
@@ -194,15 +219,19 @@ void uci_loop()
         }
         else if (token == "stop")
         {
-            info.stopped = true;
+            stop_search();
         }
         else if (token == "quit")
         {
+            stop_search();
             break;
         }
         else if (token == "d" || token == "display")
         {
+            stop_search();
             print_board(pos);
         }
     }
+
+    stop_search();
 }

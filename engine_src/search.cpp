@@ -2,6 +2,7 @@
 #include "evaluation.h"
 #include "movegen.h"
 #include "perft.h"
+#include "zobrist.h"
 #include <iostream>
 #include <algorithm>
 #include <chrono>
@@ -48,10 +49,18 @@ static inline void tt_store(U64 hash, Move best_move, int score, int depth, TTFl
     else if (score < -MATE_SCORE + MAX_PLY)
         score -= ply;
 
-    if (entry.hash != hash || depth >= entry.depth || flag == TT_EXACT)
+    if (entry.hash != hash)
     {
         entry.hash = hash;
-        entry.best_move = best_move ? best_move : entry.best_move;
+        entry.best_move = best_move;
+        entry.score = (int32_t)score;
+        entry.depth = (int8_t)depth;
+        entry.flag = flag;
+    }
+    else if (depth >= entry.depth || flag == TT_EXACT)
+    {
+        if (best_move)
+            entry.best_move = best_move;
         entry.score = (int32_t)score;
         entry.depth = (int8_t)depth;
         entry.flag = flag;
@@ -202,6 +211,8 @@ static int quiescence(Position &pos, int alpha, int beta, SearchInfo &info, int 
     sort_moves(ml, pos, info, 0, 0);
 
     int legal_moves = 0;
+    int best_score = in_check ? -INF_SCORE : alpha;
+
     for (int i = 0; i < ml.size(); i++)
     {
         if (info.stopped) return 0;
@@ -219,17 +230,22 @@ static int quiescence(Position &pos, int alpha, int beta, SearchInfo &info, int 
 
         if (info.stopped) return 0;
 
-        if (score >= beta)
-            return beta;
-
-        if (score > alpha)
-            alpha = score;
+        if (score > best_score)
+        {
+            best_score = score;
+            if (score > alpha)
+            {
+                alpha = score;
+                if (score >= beta)
+                    return beta;
+            }
+        }
     }
 
     if (in_check && legal_moves == 0)
         return -MATE_SCORE + ply;
 
-    return alpha;
+    return in_check ? best_score : alpha;
 }
 
 static int negamax(Position &pos, int alpha, int beta, int depth, int ply, SearchInfo &info)
@@ -253,7 +269,7 @@ static int negamax(Position &pos, int alpha, int beta, int depth, int ply, Searc
     int king_sq = __builtin_ctzll(pos.pieces[pos.side_to_move][KING]);
     bool in_check = is_square_attacked(king_sq, pos.side_to_move ^ 1, pos);
 
-    if (in_check)
+    if (in_check && ply < MAX_PLY - 1)
         depth++;
 
     Move hash_move = 0;
@@ -284,17 +300,27 @@ static int negamax(Position &pos, int alpha, int beta, int depth, int ply, Searc
     info.nodes++;
 
     // Null move pruning
-    if (!in_check && depth >= 3 && ply > 0)
+    bool has_pieces = (pos.pieces[pos.side_to_move][KNIGHT] |
+                       pos.pieces[pos.side_to_move][BISHOP] |
+                       pos.pieces[pos.side_to_move][ROOK] |
+                       pos.pieces[pos.side_to_move][QUEEN]) != 0;
+
+    if (!in_check && depth >= 3 && ply > 0 && has_pieces)
     {
         Position copy = pos;
         copy.side_to_move ^= 1;
-        copy.en_passant_square = -1;
+        copy.hash ^= side_key;
+        if (copy.en_passant_square != -1)
+        {
+            copy.hash ^= ep_keys[copy.en_passant_square % 8];
+            copy.en_passant_square = -1;
+        }
 
         int score = -negamax(copy, -beta, -beta + 1, depth - 3, ply + 1, info);
 
         if (info.stopped) return 0;
 
-        if (score >= beta)
+        if (score >= beta && score < MATE_SCORE - MAX_PLY)
             return beta;
     }
 
@@ -316,7 +342,7 @@ static int negamax(Position &pos, int alpha, int beta, int depth, int ply, Searc
 
         legal_moves++;
 
-        if (info.rep_count < 1024)
+        if (info.rep_count < 2048)
             info.rep_history[info.rep_count++] = pos.hash;
 
         int score;
@@ -338,7 +364,8 @@ static int negamax(Position &pos, int alpha, int beta, int depth, int ply, Searc
                 }
             }
 
-            score = -negamax(copy, -alpha - 1, -alpha, depth - 1 - reduction, ply + 1, info);
+            int reduced_depth = std::max(0, depth - 1 - reduction);
+            score = -negamax(copy, -alpha - 1, -alpha, reduced_depth, ply + 1, info);
 
             if (score > alpha && (score < beta || reduction > 0))
                 score = -negamax(copy, -beta, -alpha, depth - 1, ply + 1, info);
@@ -373,8 +400,8 @@ static int negamax(Position &pos, int alpha, int beta, int depth, int ply, Searc
                         info.killers[ply][0] = ml[i];
                         info.history[pos.side_to_move][get_from(ml[i])][get_to(ml[i])] += depth * depth;
                     }
-                    tt_store(pos.hash, ml[i], beta, depth, TT_BETA, ply);
-                    return beta;
+                    tt_store(pos.hash, ml[i], score, depth, TT_BETA, ply);
+                    return score;
                 }
             }
         }

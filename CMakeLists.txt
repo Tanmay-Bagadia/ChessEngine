@@ -36,6 +36,9 @@ set(SOURCES
     engine_src/zobrist.cpp
 )
 
+find_package(Threads REQUIRED)
+
 add_executable(engine ${SOURCES})
+target_link_libraries(engine PRIVATE Threads::Threads)
 
 target_include_directories(engine PRIVATE engine_src)
