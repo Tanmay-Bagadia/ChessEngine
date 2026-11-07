@@ -29,6 +29,9 @@ set(SOURCES
     engine_src/position.cpp
     engine_src/movegen.cpp
     engine_src/perft.cpp
+    engine_src/evaluation.cpp
+    engine_src/search.cpp
+    engine_src/uci.cpp
     engine_src/main.cpp
     engine_src/zobrist.cpp
 )

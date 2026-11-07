@@ -38,19 +38,16 @@ inline void serialize_promotions(U64 board, int offset, int flag, MoveList &move
 
 U64 set_occupancy(int index, int bits_in_mask, U64 attack_mask)
 {
-
     U64 occupancy = 0ULL;
 
     for (int i = 0; i < bits_in_mask; i++)
     {
         int square = __builtin_ctzll(attack_mask);
-
         attack_mask &= attack_mask - 1;
 
-        // Is the i-th bit of the index turned on?
         if (index & (1 << i))
         {
-            occupancy |= 1Ull << square;
+            occupancy |= 1ULL << square;
         }
     }
 
@@ -160,8 +157,8 @@ const U64 RANK_8 = 0xFF00000000000000ULL;
 
 U64 knight_attacks[64];
 U64 king_attacks[64];
-U64 rook_attacks[64][4096];  // 64 squares, max 4096 realities (12 bits)
-U64 bishop_attacks[64][512]; // 64 squares, max 512 realities (9 bits)
+U64 rook_attacks[64][4096];
+U64 bishop_attacks[64][512];
 U64 pawn_attacks[2][64];
 U64 rook_masks[64];
 U64 bishop_masks[64];
@@ -171,7 +168,7 @@ void generate_moves(Position &pos, MoveList &move_list)
     int side = pos.side_to_move;
     int enemy = side ^ 1;
 
-    // 1. PAWN MOVES
+    // Pawn moves
     U64 pawns = pos.pieces[side][PAWN];
 
     if (pos.en_passant_square != -1)
@@ -267,7 +264,7 @@ void generate_moves(Position &pos, MoveList &move_list)
         serialize_promotions(promo_captures_west, -9, CAPTURE, move_list);
     }
 
-    // 2. KNIGHT MOVES
+    // Knight moves
     U64 knights = pos.pieces[side][KNIGHT];
     while (knights != 0)
     {
@@ -289,7 +286,7 @@ void generate_moves(Position &pos, MoveList &move_list)
         }
     }
 
-    // 3. KING MOVES (non-castling)
+    // King moves
     U64 king = pos.pieces[side][KING];
     while (king != 0)
     {
@@ -311,7 +308,7 @@ void generate_moves(Position &pos, MoveList &move_list)
         }
     }
 
-    // 4. BISHOP MOVES
+    // Bishop moves
     U64 bishops = pos.pieces[side][BISHOP];
     while (bishops != 0)
     {
@@ -333,7 +330,7 @@ void generate_moves(Position &pos, MoveList &move_list)
         }
     }
 
-    // 5. ROOK MOVES
+    // Rook moves
     U64 rooks = pos.pieces[side][ROOK];
     while (rooks != 0)
     {
@@ -355,7 +352,7 @@ void generate_moves(Position &pos, MoveList &move_list)
         }
     }
 
-    // 6. QUEEN MOVES
+    // Queen moves
     U64 queens = pos.pieces[side][QUEEN];
     while (queens != 0)
     {
@@ -377,10 +374,9 @@ void generate_moves(Position &pos, MoveList &move_list)
         }
     }
 
-    // 7. CASTLING
+    // Castling
     if (side == WHITE)
     {
-        // White Kingside: e1(4) -> g1(6), f1(5) and g1(6) must be empty
         if (pos.castling_rights & WK)
         {
             if (!(pos.occupancy[BOTH] & ((1ULL << 5) | (1ULL << 6))))
@@ -391,7 +387,6 @@ void generate_moves(Position &pos, MoveList &move_list)
                 }
             }
         }
-        // White Queenside: e1(4) -> c1(2), b1(1), c1(2), d1(3) must be empty
         if (pos.castling_rights & WQ)
         {
             if (!(pos.occupancy[BOTH] & ((1ULL << 1) | (1ULL << 2) | (1ULL << 3))))
@@ -405,7 +400,6 @@ void generate_moves(Position &pos, MoveList &move_list)
     }
     else
     {
-        // Black Kingside: e8(60) -> g8(62), f8(61) and g8(62) must be empty
         if (pos.castling_rights & BK)
         {
             if (!(pos.occupancy[BOTH] & ((1ULL << 61) | (1ULL << 62))))
@@ -416,7 +410,6 @@ void generate_moves(Position &pos, MoveList &move_list)
                 }
             }
         }
-        // Black Queenside: e8(60) -> c8(58), b8(57), c8(58), d8(59) must be empty
         if (pos.castling_rights & BQ)
         {
             if (!(pos.occupancy[BOTH] & ((1ULL << 57) | (1ULL << 58) | (1ULL << 59))))
@@ -434,43 +427,34 @@ void init_leapers()
 {
     for (int square = 0; square < 64; square++)
     {
-        // KNIGHT
         U64 knight = 1ULL << square;
 
-        // EAST JUMPS
-        U64 knight_NNE = (knight << 17) & ~FILE_A;            // Up 2, Right 1
-        U64 knight_EEN = (knight << 10) & ~(FILE_A | FILE_B); // Up 1, Right 2
-        U64 knight_EES = (knight >> 6) & ~(FILE_A | FILE_B);  // Down 1, Right 2
-        U64 knight_SSE = (knight >> 15) & ~FILE_A;            // Down 2, Right 1
+        U64 knight_NNE = (knight << 17) & ~FILE_A;
+        U64 knight_EEN = (knight << 10) & ~(FILE_A | FILE_B);
+        U64 knight_EES = (knight >> 6) & ~(FILE_A | FILE_B);
+        U64 knight_SSE = (knight >> 15) & ~FILE_A;
 
-        // WEST JUMPS
-        U64 knight_NNW = (knight << 15) & ~FILE_H;            // Up 2, Left 1
-        U64 knight_WWN = (knight << 6) & ~(FILE_G | FILE_H);  // Up 1, Left 2
-        U64 knight_WWS = (knight >> 10) & ~(FILE_G | FILE_H); // Down 1, Left 2
-        U64 knight_SSW = (knight >> 17) & ~FILE_H;            // Down 2, Left 1
+        U64 knight_NNW = (knight << 15) & ~FILE_H;
+        U64 knight_WWN = (knight << 6) & ~(FILE_G | FILE_H);
+        U64 knight_WWS = (knight >> 10) & ~(FILE_G | FILE_H);
+        U64 knight_SSW = (knight >> 17) & ~FILE_H;
 
-        knight_attacks[square] = knight_NNE | knight_EEN | knight_EES | knight_SSE | knight_NNW | knight_WWN | knight_WWS | knight_SSW;
+        knight_attacks[square] = knight_NNE | knight_EEN | knight_EES | knight_SSE |
+                                 knight_NNW | knight_WWN | knight_WWS | knight_SSW;
 
-        // KING
         U64 king = 1ULL << square;
 
-        // VERTICAL JUMPS
         U64 jump_N = (king << 8);
         U64 jump_S = (king >> 8);
-
-        // EAST JUMPS
         U64 jump_E = (king << 1) & ~FILE_A;
         U64 jump_NE = (king << 9) & ~FILE_A;
         U64 jump_SE = (king >> 7) & ~FILE_A;
-
-        // WEST JUMPS
         U64 jump_W = (king >> 1) & ~FILE_H;
         U64 jump_NW = (king << 7) & ~FILE_H;
         U64 jump_SW = (king >> 9) & ~FILE_H;
 
         king_attacks[square] = jump_N | jump_S | jump_E | jump_W | jump_NE | jump_NW | jump_SE | jump_SW;
 
-        // PAWN ATTACKS
         U64 pawn = 1ULL << square;
         pawn_attacks[WHITE][square] = ((pawn << 9) & ~FILE_A) | ((pawn << 7) & ~FILE_H);
         pawn_attacks[BLACK][square] = ((pawn >> 7) & ~FILE_A) | ((pawn >> 9) & ~FILE_H);
@@ -536,32 +520,29 @@ U64 mask_bishop_attacks(int square)
     return mask;
 }
 
-unsigned int random_state = 1804289383; // seed for generating pseudo-random numbers
+static unsigned int random_state = 1804289383;
 
-unsigned int random_u32()
+static unsigned int random_u32()
 {
-    // Xorshift algorithm by George Marsaglia - proven to produce good random numbers
     unsigned int number = random_state;
-
     number ^= number << 13;
     number ^= number >> 17;
     number ^= number << 5;
-
-    random_state = number; // scramble the randome state to produce new number
+    random_state = number;
     return number;
 }
 
-U64 random_u64()
+static U64 random_u64()
 {
-    U64 num1 = (U64)(random_u32()) & 0xFFFF; // 0xFFFF  is 1111111111111111, this mask only keeps the lowest 16 bits
-    U64 num2 = (U64)(random_u32()) & 0xFFFF; // 0xFFFF  is 1111111111111111, this mask only keeps the lowest 16 bits
-    U64 num3 = (U64)(random_u32()) & 0xFFFF; // 0xFFFF  is 1111111111111111, this mask only keeps the lowest 16 bits
-    U64 num4 = (U64)(random_u32()) & 0xFFFF; // 0xFFFF  is 1111111111111111, this mask only keeps the lowest 16 bits
+    U64 num1 = (U64)(random_u32()) & 0xFFFF;
+    U64 num2 = (U64)(random_u32()) & 0xFFFF;
+    U64 num3 = (U64)(random_u32()) & 0xFFFF;
+    U64 num4 = (U64)(random_u32()) & 0xFFFF;
 
-    return num1 | num2 << 16 | num3 << 32 | num4 << 48;
+    return num1 | (num2 << 16) | (num3 << 32) | (num4 << 48);
 }
 
-U64 random_magic_candidate()
+static U64 random_magic_candidate()
 {
     return random_u64() & random_u64() & random_u64();
 }
@@ -573,7 +554,7 @@ U64 find_magic_number(int square, bool is_bishop)
 {
     U64 mask = is_bishop ? bishop_masks[square] : rook_masks[square];
     int relevant_bits = __builtin_popcountll(mask);
-    int occupancy_cnt = 1 << relevant_bits; // total no. of blocker arrangements
+    int occupancy_cnt = 1 << relevant_bits;
 
     U64 occupancies[4096];
     U64 attacks[4096];
@@ -581,14 +562,14 @@ U64 find_magic_number(int square, bool is_bishop)
     for (int i = 0; i < occupancy_cnt; i++)
     {
         occupancies[i] = set_occupancy(i, relevant_bits, mask);
-        attacks[i] = is_bishop ? bishop_attacks_on_the_fly(square, occupancies[i]) : rook_attacks_on_the_fly(square, occupancies[i]);
+        attacks[i] = is_bishop ? bishop_attacks_on_the_fly(square, occupancies[i])
+                               : rook_attacks_on_the_fly(square, occupancies[i]);
     }
 
     for (int trials = 0; trials < 100000000; trials++)
     {
         U64 candidate = random_magic_candidate();
 
-        // Quick filter: skip candidates that don't spread bits well
         if (__builtin_popcountll((mask * candidate) & 0xFF00000000000000ULL) < 6)
         {
             continue;
@@ -599,7 +580,6 @@ U64 find_magic_number(int square, bool is_bishop)
 
         for (int i = 0; i < occupancy_cnt; i++)
         {
-            // The magic formula: multiply and shift to get index
             int index = (int)((occupancies[i] * candidate) >> (64 - relevant_bits));
 
             if (used[index] == 0ULL)
@@ -608,7 +588,6 @@ U64 find_magic_number(int square, bool is_bishop)
             }
             else if (used[index] != attacks[i])
             {
-                // Collision — two different attack patterns mapped to same index
                 failed = true;
                 break;
             }
@@ -655,37 +634,31 @@ void init_sliders()
 
 bool is_square_attacked(int square, int attacking_side, Position &pos)
 {
-    // Pawn: if I put an opposite-color pawn here, does it see an enemy pawn
     if (pawn_attacks[attacking_side ^ 1][square] & pos.pieces[attacking_side][PAWN])
     {
         return true;
     }
 
-    // Knight
     if (knight_attacks[square] & pos.pieces[attacking_side][KNIGHT])
     {
         return true;
     }
 
-    // Bishop
     if (get_bishop_attacks(square, pos.occupancy[BOTH]) & pos.pieces[attacking_side][BISHOP])
     {
         return true;
     }
 
-    // Rook
     if (get_rook_attacks(square, pos.occupancy[BOTH]) & pos.pieces[attacking_side][ROOK])
     {
         return true;
     }
 
-    // Queen (diagonal + straight)
     if (get_queen_attacks(square, pos.occupancy[BOTH]) & pos.pieces[attacking_side][QUEEN])
     {
         return true;
     }
 
-    // King
     if (king_attacks[square] & pos.pieces[attacking_side][KING])
     {
         return true;

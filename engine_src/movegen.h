@@ -27,7 +27,6 @@ extern U64 rook_attacks[64][4096];
 extern U64 bishop_attacks[64][512];
 extern U64 pawn_attacks[2][64];
 
-// The bit-packing macro
 inline Move encode_move(int from, int to, int flag)
 {
     return (flag << 12) | (to << 6) | from;

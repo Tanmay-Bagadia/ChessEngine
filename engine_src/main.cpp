@@ -1,19 +1,19 @@
-#include <iostream>
 #include "bitboard.h"
-#include "position.h"
 #include "movegen.h"
-#include "perft.h"
 #include "zobrist.h"
+#include "evaluation.h"
+#include "search.h"
+#include "uci.h"
 
 int main()
 {
-    std::cout << "Booting Engine Architecture...\n";
-
     init_leapers();
     init_zobrist();
     init_sliders();
+    init_evaluation();
+    init_tt(16);
 
-    run_perft_suite();
+    uci_loop();
 
     return 0;
 }

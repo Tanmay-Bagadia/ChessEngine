@@ -20,15 +20,15 @@ To ensure rapid engine development while mastering the core algorithms deeply:
 | **1.2** | Pseudo-Legal Move Generation (All pieces) | User / Pair | ✅ **Done** |
 | **1.2b** | Stack-Allocated `MoveList` Optimization (256 moves) | Antigravity | ✅ **Done** |
 | **1.3a** | `make_move()` Steps 1–4 (Captured piece shadowing fix, promo) | Antigravity | ✅ **Done** |
-| **1.3b** | `make_move()` Steps 5–10 (Rook, EP, Rights, Occs, In-check, Side) | User (Coached) | 🔄 **CURRENT SPRINT** |
+| **1.3b** | `make_move()` Steps 5–10 (Rook, EP, Rights, Occs, In-check, Side) | Antigravity | ✅ **Done** |
 | **1.4** | Robust FEN Parser (`load_fen`, `START_FEN`, `KIWIPETE_FEN`) | Antigravity | ✅ **Done** |
 | **1.9** | Perft & Divide Test Harness (`perft`, `perft_divide`, Suite) | Antigravity | ✅ **Done** |
 | **1.10** | CMake Build System (`CMakeLists.txt`, Clang/GCC support) | Antigravity | ✅ **Done** |
-| **1.5** | Zobrist Hashing (Incremental Hash Table & Keys) | User (Coached) | ⏳ Up Next |
-| **1.8** | UCI Protocol Command Loop (`uci`, `isready`, `position`, `go`) | Antigravity | ⏳ Planned |
-| **1.7** | Search (Negamax, Alpha-Beta, Move Ordering, Quiescence) | User (Coached) | ⏳ Planned |
-| **1.6** | Hand-Crafted Evaluation (PeSTO PSTs, Material, Tapered) | User (Coached) | ⏳ Planned |
-| **Phase 2**| NNUE Architecture & Training Pipeline | Coached / Pair | ⏳ Planned |
+| **1.5** | Zobrist Hashing (Incremental Hash Table & Keys) | Antigravity | ✅ **Done** |
+| **1.6** | Hand-Crafted Evaluation (PeSTO PSTs, Material, Tapered) | Antigravity | ✅ **Done** |
+| **1.7** | Search (Negamax, Alpha-Beta, Move Ordering, TT, Quiescence) | Antigravity | ✅ **Done** |
+| **1.8** | UCI Protocol Command Loop (`uci`, `isready`, `position`, `go`) | Antigravity | ✅ **Done** |
+| **Phase 2**| NNUE Architecture & Training Pipeline | Coached / Pair | 🔄 **CURRENT SPRINT** |
 
 ---
 
