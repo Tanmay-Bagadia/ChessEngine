@@ -135,7 +135,7 @@ static void sort_moves(MoveList &ml, const Position &pos, const SearchInfo &info
 
 static inline void check_time(SearchInfo &info)
 {
-    if (info.time_limit_ms > 0 && (info.nodes & 2047) == 0)
+    if (info.time_limit_ms > 0 && (info.nodes & 1023) == 0)
     {
         if (get_time_ms() - info.start_time_ms >= info.time_limit_ms)
             info.stopped = true;
@@ -178,6 +178,7 @@ static int quiescence(Position &pos, int alpha, int beta, SearchInfo &info, int 
     int legal_moves = 0;
     for (int i = 0; i < ml.size(); i++)
     {
+        if (info.stopped) return 0;
         int flag = get_flag(ml[i]);
         if (!in_check && !(flag & 4) && flag < 8)
             continue;
@@ -275,6 +276,7 @@ static int negamax(Position &pos, int alpha, int beta, int depth, int ply, Searc
 
     for (int i = 0; i < ml.size(); i++)
     {
+        if (info.stopped) return 0;
         Position copy = pos;
         if (!make_move(copy, ml[i]))
             continue;
@@ -382,6 +384,13 @@ void search_position(Position &pos, SearchInfo &info)
 
     for (int d = 1; d <= info.depth; d++)
     {
+        if (info.time_limit_ms > 0 && d > 1)
+        {
+            int64_t elapsed = get_time_ms() - info.start_time_ms;
+            if (elapsed >= info.time_limit_ms / 2)
+                break;
+        }
+
         int score = negamax(pos, -INF_SCORE, INF_SCORE, d, 0, info);
 
         if (info.stopped)
