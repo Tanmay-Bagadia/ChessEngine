@@ -533,7 +533,38 @@ void search_position(Position &pos, SearchInfo &info)
         }
         else
         {
-            int score = negamax(pos, -INF_SCORE, INF_SCORE, d, 0, info);
+            int score;
+            if (d >= 4)
+            {
+                int delta = 35;
+                int alpha = std::max(-INF_SCORE, best_score - delta);
+                int beta = std::min(INF_SCORE, best_score + delta);
+
+                while (true)
+                {
+                    score = negamax(pos, alpha, beta, d, 0, info);
+                    if (info.stopped) break;
+
+                    if (score <= alpha)
+                    {
+                        alpha = std::max(-INF_SCORE, alpha - delta);
+                        delta += delta / 2;
+                    }
+                    else if (score >= beta)
+                    {
+                        beta = std::min(INF_SCORE, beta + delta);
+                        delta += delta / 2;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                score = negamax(pos, -INF_SCORE, INF_SCORE, d, 0, info);
+            }
 
             if (info.stopped)
                 break;
