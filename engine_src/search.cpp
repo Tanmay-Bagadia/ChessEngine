@@ -48,11 +48,18 @@ static inline void tt_store(U64 hash, Move best_move, int score, int depth, TTFl
     else if (score < -MATE_SCORE + MAX_PLY)
         score -= ply;
 
-    entry.hash = hash;
-    entry.best_move = best_move;
-    entry.score = (int16_t)score;
-    entry.depth = (int8_t)depth;
-    entry.flag = flag;
+    if (entry.hash != hash || depth >= entry.depth || flag == TT_EXACT)
+    {
+        entry.hash = hash;
+        entry.best_move = best_move ? best_move : entry.best_move;
+        entry.score = (int32_t)score;
+        entry.depth = (int8_t)depth;
+        entry.flag = flag;
+    }
+    else if (best_move)
+    {
+        entry.best_move = best_move;
+    }
 }
 
 int64_t get_time_ms()
@@ -108,7 +115,7 @@ static int score_move(Move m, const Position &pos, const SearchInfo &info, int p
         if (m == info.killers[ply][1]) return 7000;
     }
 
-    return info.history[side][from][to];
+    return std::min(info.history[side][from][to], 6000);
 }
 
 static void sort_moves(MoveList &ml, const Position &pos, const SearchInfo &info, int ply, Move hash_move)
@@ -144,10 +151,23 @@ static inline void check_time(SearchInfo &info)
 
 static bool is_repetition(const SearchInfo &info, U64 hash)
 {
-    for (int i = 0; i < info.rep_count; i++)
+    // Search path: any recurrence in current search path is a draw
+    for (int i = info.game_ply; i < info.rep_count; i++)
     {
         if (info.rep_history[i] == hash)
             return true;
+    }
+
+    // Game history: 2 occurrences in game history means this would be the 3rd
+    int count = 0;
+    for (int i = 0; i < info.game_ply; i++)
+    {
+        if (info.rep_history[i] == hash)
+        {
+            count++;
+            if (count >= 2)
+                return true;
+        }
     }
     return false;
 }
@@ -156,6 +176,12 @@ static int quiescence(Position &pos, int alpha, int beta, SearchInfo &info, int 
 {
     check_time(info);
     if (info.stopped) return 0;
+
+    if (ply >= MAX_PLY - 1)
+        return evaluate(pos);
+
+    if (pos.halfmove_clock >= 100)
+        return 0;
 
     info.nodes++;
 
@@ -213,8 +239,15 @@ static int negamax(Position &pos, int alpha, int beta, int depth, int ply, Searc
     check_time(info);
     if (info.stopped) return 0;
 
+    if (ply >= MAX_PLY - 1)
+        return evaluate(pos);
+
     // Repetition check (avoid returning draw at root)
     if (ply > 0 && is_repetition(info, pos.hash))
+        return 0;
+
+    // 50-move rule
+    if (ply > 0 && pos.halfmove_clock >= 100)
         return 0;
 
     int king_sq = __builtin_ctzll(pos.pieces[pos.side_to_move][KING]);

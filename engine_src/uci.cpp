@@ -9,6 +9,8 @@
 
 static Position pos;
 static SearchInfo info;
+static U64 game_history[2048];
+static int game_history_count = 0;
 
 static Move parse_move(Position &pos, const std::string &str)
 {
@@ -48,7 +50,9 @@ static Move parse_move(Position &pos, const std::string &str)
 static void parse_position(std::istringstream &is)
 {
     std::string token;
-    is >> token;
+    if (!(is >> token)) return;
+
+    game_history_count = 0;
 
     if (token == "startpos")
     {
@@ -63,11 +67,19 @@ static void parse_position(std::istringstream &is)
         load_fen(pos, fen.c_str());
     }
 
+    if (game_history_count < 2048)
+        game_history[game_history_count++] = pos.hash;
+
     while (is >> token)
     {
+        if (token == "moves") continue;
         Move m = parse_move(pos, token);
         if (m != 0)
+        {
             make_move(pos, m);
+            if (game_history_count < 2048)
+                game_history[game_history_count++] = pos.hash;
+        }
     }
 }
 
@@ -125,6 +137,11 @@ static void parse_go(std::istringstream &is)
         }
     }
 
+    info.game_ply = game_history_count;
+    for (int i = 0; i < game_history_count; i++)
+        info.rep_history[i] = game_history[i];
+    info.rep_count = game_history_count;
+
     search_position(pos, info);
 }
 
@@ -164,6 +181,7 @@ void uci_loop()
         else if (token == "ucinewgame")
         {
             clear_tt();
+            game_history_count = 0;
             load_fen(pos, START_FEN);
         }
         else if (token == "position")

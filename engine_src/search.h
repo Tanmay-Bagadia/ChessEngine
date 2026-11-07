@@ -18,8 +18,8 @@ enum TTFlag : uint8_t {
 
 struct TTEntry {
     U64 hash;
+    int32_t score;
     Move best_move;
-    int16_t score;
     int8_t depth;
     uint8_t flag;
 };
@@ -41,11 +41,13 @@ struct SearchInfo {
     Move pv[MAX_PLY][MAX_PLY];
     int pv_length[MAX_PLY];
 
-    U64 rep_history[1024];
+    U64 rep_history[2048];
     int rep_count;
+    int game_ply;
 
     SearchInfo() : depth(0), nodes(0), best_move(0), score(0),
-                   stopped(false), time_limit_ms(0), start_time_ms(0), rep_count(0) {
+                   stopped(false), time_limit_ms(0), start_time_ms(0),
+                   rep_count(0), game_ply(0) {
         clear();
     }
 
@@ -53,7 +55,7 @@ struct SearchInfo {
         nodes = 0;
         best_move = 0;
         score = 0;
-        rep_count = 0;
+        rep_count = game_ply;
         for (int i = 0; i < MAX_PLY; i++) {
             killers[i][0] = killers[i][1] = 0;
             pv_length[i] = 0;

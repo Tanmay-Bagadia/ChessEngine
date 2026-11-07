@@ -234,6 +234,9 @@ bool make_move(Position &pos, Move move)
         }
     }
 
+    if (piece_type == -1)
+        return false;
+
     clear_bit(pos.pieces[side][piece_type], from);
     pos.hash ^= piece_keys[side][piece_type][from];
 
@@ -241,24 +244,29 @@ bool make_move(Position &pos, Move move)
     {
         int captured_piece = -1;
         int captured_square = to;
-        for (int i = 0; i < 6; i++)
-        {
-            if (pos.pieces[enemy][i] & (1ULL << to))
-            {
-                captured_piece = i;
-                break;
-            }
-        }
 
-        // En passant: captured pawn is on the adjacent square behind the destination
-        if (captured_piece == -1)
+        if (flag == EP_CAPTURE)
         {
             captured_piece = PAWN;
             captured_square = (side == WHITE) ? (to - 8) : (to + 8);
         }
+        else
+        {
+            for (int i = 0; i < 6; i++)
+            {
+                if (pos.pieces[enemy][i] & (1ULL << to))
+                {
+                    captured_piece = i;
+                    break;
+                }
+            }
+        }
 
-        clear_bit(pos.pieces[enemy][captured_piece], captured_square);
-        pos.hash ^= piece_keys[enemy][captured_piece][captured_square];
+        if (captured_piece != -1)
+        {
+            clear_bit(pos.pieces[enemy][captured_piece], captured_square);
+            pos.hash ^= piece_keys[enemy][captured_piece][captured_square];
+        }
     }
 
     if (flag >= 8)
@@ -360,6 +368,14 @@ bool make_move(Position &pos, Move move)
 
     pos.side_to_move ^= 1;
     pos.hash ^= side_key;
+
+    if (piece_type == PAWN || (flag & 4))
+        pos.halfmove_clock = 0;
+    else
+        pos.halfmove_clock++;
+
+    if (side == BLACK)
+        pos.fullmove_number++;
 
     return true;
 }
