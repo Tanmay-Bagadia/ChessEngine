@@ -1,5 +1,6 @@
 #include "evaluation.h"
 #include "bitboard.h"
+#include "nnue.h"
 
 // PeSTO piece-square tables written visually with rank 8 at top (index 0..7) and rank 1 at bottom (index 56..63)
 static const int mg_pawn_table[64] = {
@@ -179,6 +180,9 @@ void init_evaluation()
 
 int evaluate(const Position &pos)
 {
+    if (get_use_nnue() && is_nnue_loaded())
+        return evaluate_nnue_position(pos);
+
     if (!tables_initialized)
         init_evaluation();
 

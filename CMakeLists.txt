@@ -34,6 +34,7 @@ set(SOURCES
     engine_src/uci.cpp
     engine_src/main.cpp
     engine_src/zobrist.cpp
+    engine_src/nnue.cpp
 )
 
 find_package(Threads REQUIRED)

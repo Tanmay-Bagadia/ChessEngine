@@ -3,6 +3,7 @@
 #include "movegen.h"
 #include "perft.h"
 #include "zobrist.h"
+#include "nnue.h"
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -181,6 +182,8 @@ void uci_loop()
             std::cout << "id name TanmayChess 1.0" << std::endl;
             std::cout << "id author Tanmay" << std::endl;
             std::cout << "option name Hash type spin default 16 min 1 max 1024" << std::endl;
+            std::cout << "option name UseNNUE type check default " << (get_use_nnue() ? "true" : "false") << std::endl;
+            std::cout << "option name EvalFile type string default nnue.bin" << std::endl;
             std::cout << "uciok" << std::endl;
         }
         else if (token == "isready")
@@ -190,13 +193,34 @@ void uci_loop()
         else if (token == "setoption")
         {
             std::string name_tok, opt_name, val_tok;
-            int val = 0;
             if (is >> name_tok && name_tok == "name" && is >> opt_name)
             {
-                if (opt_name == "Hash" && is >> val_tok && val_tok == "value" && is >> val)
+                if (opt_name == "Hash" && is >> val_tok && val_tok == "value")
                 {
-                    stop_search();
-                    init_tt(val);
+                    int val = 16;
+                    if (is >> val)
+                    {
+                        stop_search();
+                        init_tt(val);
+                    }
+                }
+                else if (opt_name == "UseNNUE" && is >> val_tok && val_tok == "value")
+                {
+                    std::string val;
+                    if (is >> val)
+                    {
+                        stop_search();
+                        set_use_nnue(val == "true");
+                    }
+                }
+                else if (opt_name == "EvalFile" && is >> val_tok && val_tok == "value")
+                {
+                    std::string filename;
+                    if (is >> filename)
+                    {
+                        stop_search();
+                        load_nnue_file(filename.c_str());
+                    }
                 }
             }
         }
