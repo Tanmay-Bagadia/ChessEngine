@@ -28,3 +28,4 @@ int evaluate_nnue_position(const Position &pos);
 bool is_nnue_loaded();
 void set_use_nnue(bool enable);
 bool get_use_nnue();
+

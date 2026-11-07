@@ -27,6 +27,13 @@ struct TTEntry {
 void init_tt(size_t mb = 16);
 void clear_tt();
 
+struct MultiPVLine {
+    Move move;
+    int score;
+    Move pv[MAX_PLY + 1];
+    int pv_length;
+};
+
 struct SearchInfo {
     int depth;
     uint64_t nodes;
@@ -35,6 +42,10 @@ struct SearchInfo {
     std::atomic<bool> stopped;
     int64_t time_limit_ms;
     int64_t start_time_ms;
+
+    int multipv;
+    MultiPVLine pv_lines[5];
+    int pv_line_count;
 
     Move killers[MAX_PLY + 1][2];
     int history[2][64][64];
@@ -47,6 +58,7 @@ struct SearchInfo {
 
     SearchInfo() : depth(0), nodes(0), best_move(0), score(0),
                    stopped(false), time_limit_ms(0), start_time_ms(0),
+                   multipv(1), pv_line_count(0),
                    rep_count(0), game_ply(0) {
         clear();
     }

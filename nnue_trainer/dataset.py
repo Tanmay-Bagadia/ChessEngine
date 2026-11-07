@@ -54,3 +54,4 @@ class ChessPositionDataset(Dataset):
             torch.from_numpy(them_feat),
             torch.tensor([target], dtype=torch.float32)
         )
+

@@ -88,3 +88,4 @@ class Simple768NNUE(nn.Module):
             f.write(struct.pack("<i", out_b_q))
             
         print(f"Successfully exported quantized NNUE model to {filename} ({struct.calcsize('<I') + ft_w_q.nbytes + ft_b_q.nbytes + l1_w_q.nbytes + l1_b_q.nbytes + l2_w_q.nbytes + l2_b_q.nbytes + out_w_q.nbytes + 4} bytes)")
+

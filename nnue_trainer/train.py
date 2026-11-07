@@ -101,3 +101,4 @@ if __name__ == "__main__":
     import sys
     export_file = sys.argv[1] if len(sys.argv) > 1 else "nnue.bin"
     train_nnue(epochs=3, batch_size=64, export_path=export_file)
+

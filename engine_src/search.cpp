@@ -451,37 +451,120 @@ void search_position(Position &pos, SearchInfo &info)
                 break;
         }
 
-        int score = negamax(pos, -INF_SCORE, INF_SCORE, d, 0, info);
+        if (info.multipv > 1)
+        {
+            MoveList legal_roots;
+            for (int i = 0; i < root_moves.size(); i++)
+            {
+                Position copy = pos;
+                if (make_move(copy, root_moves[i]))
+                    legal_roots.push_back(root_moves[i]);
+            }
 
-        if (info.stopped)
-            break;
+            int num_lines = std::min((int)legal_roots.size(), std::min(info.multipv, 5));
+            Move excluded[5] = {0};
 
-        if (info.pv_length[0] > 0)
-            best_move = info.pv[0][0];
-        best_score = score;
+            for (int pv_idx = 0; pv_idx < num_lines; pv_idx++)
+            {
+                int best_line_score = -INF_SCORE;
+                Move best_line_move = 0;
 
-        int64_t elapsed = get_time_ms() - info.start_time_ms;
-        if (elapsed == 0) elapsed = 1;
+                for (int i = 0; i < legal_roots.size(); i++)
+                {
+                    Move m = legal_roots[i];
+                    bool is_excluded = false;
+                    for (int ex = 0; ex < pv_idx; ex++)
+                        if (m == excluded[ex]) { is_excluded = true; break; }
+                    if (is_excluded) continue;
 
-        std::cout << "info depth " << d
-                  << " score ";
+                    Position copy = pos;
+                    make_move(copy, m);
 
-        if (best_score > MATE_SCORE - MAX_PLY)
-            std::cout << "mate " << (MATE_SCORE - best_score + 1) / 2;
-        else if (best_score < -MATE_SCORE + MAX_PLY)
-            std::cout << "mate " << -(MATE_SCORE + best_score + 1) / 2;
+                    int score = -negamax(copy, -INF_SCORE, -best_line_score, d - 1, 1, info);
+                    if (info.stopped) break;
+
+                    if (score > best_line_score)
+                    {
+                        best_line_score = score;
+                        best_line_move = m;
+
+                        info.pv_lines[pv_idx].move = m;
+                        info.pv_lines[pv_idx].score = score;
+                        info.pv_lines[pv_idx].pv[0] = m;
+                        for (int j = 1; j < info.pv_length[1]; j++)
+                            info.pv_lines[pv_idx].pv[j] = info.pv[1][j];
+                        info.pv_lines[pv_idx].pv_length = std::max(1, info.pv_length[1]);
+                    }
+                }
+
+                if (info.stopped) break;
+                excluded[pv_idx] = best_line_move;
+
+                int64_t elapsed = get_time_ms() - info.start_time_ms;
+                if (elapsed == 0) elapsed = 1;
+
+                std::cout << "info depth " << d
+                          << " multipv " << (pv_idx + 1)
+                          << " score ";
+
+                if (best_line_score > MATE_SCORE - MAX_PLY)
+                    std::cout << "mate " << (MATE_SCORE - best_line_score + 1) / 2;
+                else if (best_line_score < -MATE_SCORE + MAX_PLY)
+                    std::cout << "mate " << -(MATE_SCORE + best_line_score + 1) / 2;
+                else
+                    std::cout << "cp " << best_line_score;
+
+                std::cout << " nodes " << info.nodes
+                          << " time " << elapsed
+                          << " nps " << (info.nodes * 1000 / elapsed)
+                          << " pv";
+
+                for (int j = 0; j < info.pv_lines[pv_idx].pv_length; j++)
+                    std::cout << " " << move_to_uci(info.pv_lines[pv_idx].pv[j]);
+
+                std::cout << std::endl;
+            }
+
+            if (num_lines > 0 && info.pv_lines[0].move)
+            {
+                best_move = info.pv_lines[0].move;
+                best_score = info.pv_lines[0].score;
+            }
+        }
         else
-            std::cout << "cp " << best_score;
+        {
+            int score = negamax(pos, -INF_SCORE, INF_SCORE, d, 0, info);
 
-        std::cout << " nodes " << info.nodes
-                  << " time " << elapsed
-                  << " nps " << (info.nodes * 1000 / elapsed)
-                  << " pv";
+            if (info.stopped)
+                break;
 
-        for (int i = 0; i < info.pv_length[0]; i++)
-            std::cout << " " << move_to_uci(info.pv[0][i]);
+            if (info.pv_length[0] > 0)
+                best_move = info.pv[0][0];
+            best_score = score;
 
-        std::cout << std::endl;
+            int64_t elapsed = get_time_ms() - info.start_time_ms;
+            if (elapsed == 0) elapsed = 1;
+
+            std::cout << "info depth " << d
+                      << " score ";
+
+            if (best_score > MATE_SCORE - MAX_PLY)
+                std::cout << "mate " << (MATE_SCORE - best_score + 1) / 2;
+            else if (best_score < -MATE_SCORE + MAX_PLY)
+                std::cout << "mate " << -(MATE_SCORE + best_score + 1) / 2;
+            else
+                std::cout << "cp " << best_score;
+
+            std::cout << " nodes " << info.nodes
+                      << " time " << elapsed
+                      << " nps " << (info.nodes * 1000 / elapsed)
+                      << " pv";
+
+            for (int i = 0; i < info.pv_length[0]; i++)
+                std::cout << " " << move_to_uci(info.pv[0][i]);
+
+            std::cout << std::endl;
+        }
     }
 
     info.best_move = best_move;

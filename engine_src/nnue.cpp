@@ -177,3 +177,4 @@ bool get_use_nnue()
 {
     return use_nnue;
 }
+

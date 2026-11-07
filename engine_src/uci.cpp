@@ -9,6 +9,7 @@
 #include <string>
 #include <thread>
 #include <cctype>
+#include <algorithm>
 
 static Position pos;
 static SearchInfo info;
@@ -182,6 +183,7 @@ void uci_loop()
             std::cout << "id name TanmayChess 1.0" << std::endl;
             std::cout << "id author Tanmay" << std::endl;
             std::cout << "option name Hash type spin default 16 min 1 max 1024" << std::endl;
+            std::cout << "option name MultiPV type spin default 1 min 1 max 5" << std::endl;
             std::cout << "option name UseNNUE type check default " << (get_use_nnue() ? "true" : "false") << std::endl;
             std::cout << "option name EvalFile type string default nnue.bin" << std::endl;
             std::cout << "uciok" << std::endl;
@@ -202,6 +204,15 @@ void uci_loop()
                     {
                         stop_search();
                         init_tt(val);
+                    }
+                }
+                else if (opt_name == "MultiPV" && is >> val_tok && val_tok == "value")
+                {
+                    int val = 1;
+                    if (is >> val)
+                    {
+                        stop_search();
+                        info.multipv = std::clamp(val, 1, 5);
                     }
                 }
                 else if (opt_name == "UseNNUE" && is >> val_tok && val_tok == "value")

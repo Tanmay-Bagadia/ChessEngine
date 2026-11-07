@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TanmayChess | Neural Analysis GUI</title>
+    <style>
+        :root {
+            --bg-primary: #161512;
+            --bg-secondary: #262421;
+            --bg-tertiary: #363431;
+            --accent: #629924;
+            --accent-hover: #75b32e;
+            --text-main: #bababa;
+            --text-bright: #ffffff;
+            --board-light: #f0d9b5;
+            --board-dark: #b58863;
+            --highlight-select: rgba(20, 130, 230, 0.5);
+            --highlight-last: rgba(155, 199, 0, 0.41);
+            --highlight-check: rgba(235, 40, 40, 0.65);
+            --border-color: #403d39;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        header {
+            background-color: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-bright);
+        }
+
+        .badge {
+            background: #2f6627;
+            color: #8edc75;
+            font-size: 0.75rem;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-weight: 600;
+        }
+
+        .top-stats {
+            display: flex;
+            gap: 20px;
+            font-size: 0.85rem;
+        }
+
+        .stat-item span {
+            color: var(--text-bright);
+            font-weight: 600;
+        }
+
+        main {
+            display: flex;
+            flex: 1;
+            padding: 24px;
+            gap: 24px;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        /* Board Section */
+        .board-container {
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+        }
+
+        .eval-bar-wrapper {
+            width: 28px;
+            height: 560px;
+            background: #2b2b2b;
+            border-radius: 4px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            border: 1px solid var(--border-color);
+        }
+
+        .eval-bar-black {
+            width: 100%;
+            background: #111;
+            transition: height 0.3s ease;
+        }
+
+        .eval-bar-white {
+            width: 100%;
+            background: #eee;
+            flex: 1;
+        }
+
+        .eval-text {
+            position: absolute;
+            bottom: 6px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: #111;
+            text-shadow: 0 0 2px rgba(255,255,255,0.8);
+            pointer-events: none;
+        }
+
+        .board {
+            width: 560px;
+            height: 560px;
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            border-radius: 4px;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .square {
+            width: 70px;
+            height: 70px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .square.light { background-color: var(--board-light); }
+        .square.dark { background-color: var(--board-dark); }
+        .square.selected { background-color: var(--highlight-select) !important; }
+        .square.last-move { background-color: var(--highlight-last) !important; }
+        .square.in-check { background-color: var(--highlight-check) !important; }
+
+        .square.legal-target::after {
+            content: '';
+            width: 22px;
+            height: 22px;
+            background: rgba(0,0,0,0.22);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .square.legal-capture::after {
+            content: '';
+            width: 56px;
+            height: 56px;
+            border: 5px solid rgba(0,0,0,0.25);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .piece {
+            width: 60px;
+            height: 60px;
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            z-index: 2;
+        }
+
+        /* Right Panel */
+        .sidebar {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            min-width: 380px;
+        }
+
+        .card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 16px;
+        }
+
+        .card-header {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--text-bright);
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* MultiPV lines */
+        .multipv-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .multipv-item {
+            background: var(--bg-tertiary);
+            padding: 10px 12px;
+            border-radius: 4px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 0.85rem;
+            border-left: 4px solid #555;
+        }
+
+        .multipv-item.top {
+            border-left-color: var(--accent);
+            background: #2c3325;
+        }
+
+        .multipv-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .score-pill {
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+
+        .score-pos { background: #2f6627; color: #b1f0a8; }
+        .score-neg { background: #782828; color: #f0a8a8; }
+        .score-even { background: #444; color: #ddd; }
+
+        .pv-moves {
+            color: #ddd;
+            font-family: monospace;
+            font-size: 0.8rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Move list table */
+        .moves-box {
+            height: 180px;
+            overflow-y: auto;
+            background: var(--bg-primary);
+            border-radius: 4px;
+            padding: 8px;
+            font-size: 0.85rem;
+            font-family: monospace;
+        }
+
+        .move-row {
+            display: flex;
+            padding: 3px 6px;
+            border-radius: 3px;
+        }
+
+        .move-row:nth-child(even) { background: rgba(255,255,255,0.02); }
+        .move-num { width: 45px; color: #777; }
+        .move-white, .move-black { flex: 1; color: var(--text-bright); cursor: pointer; }
+        .move-white:hover, .move-black:hover { text-decoration: underline; }
+
+        /* Controls */
+        .btn-group {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        button {
+            background-color: var(--bg-tertiary);
+            color: var(--text-bright);
+            border: 1px solid var(--border-color);
+            padding: 8px 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85rem;
+            transition: all 0.15s ease;
+        }
+
+        button:hover {
+            background-color: #4a4743;
+            border-color: #666;
+        }
+
+        button.primary {
+            background-color: var(--accent);
+            border-color: var(--accent);
+        }
+
+        button.primary:hover {
+            background-color: var(--accent-hover);
+        }
+
+        .fen-input {
+            width: 100%;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            color: #eee;
+            padding: 8px 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.8rem;
+            margin-top: 8px;
+        }
+
+        .switch-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            padding: 4px 0;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <span>♟️ TanmayChess</span>
+            <span class="badge" id="engine-name-badge">TanmayChess 1.0</span>
+        </div>
+        <div class="top-stats">
+            <div class="stat-item">Eval: <span id="stat-score">+0.0</span></div>
+            <div class="stat-item">Depth: <span id="stat-depth">0</span></div>
+            <div class="stat-item">Nodes: <span id="stat-nodes">0</span></div>
+            <div class="stat-item">NPS: <span id="stat-nps">0</span></div>
+        </div>
+    </header>
+
+    <main>
+        <!-- Left: Chessboard + Eval Bar -->
+        <div class="board-container">
+            <div class="eval-bar-wrapper">
+                <div class="eval-bar-black" id="eval-bar-black" style="height: 50%;"></div>
+                <div class="eval-bar-white"></div>
+                <div class="eval-text" id="eval-bar-text">+0.0</div>
+            </div>
+
+            <div>
+                <div class="board" id="board"></div>
+                <div class="btn-group" style="margin-top: 12px; justify-content: space-between;">
+                    <div>
+                        <button onclick="newGame()">New Game</button>
+                        <button onclick="flipBoard()">Flip</button>
+                        <button onclick="undoMove()">Undo</button>
+                    </div>
+                    <div>
+                        <button id="btn-toggle-engine" class="primary" onclick="toggleEnginePlay()">Play Engine</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: MultiPV Analysis & Moves -->
+        <div class="sidebar">
+            <!-- MultiPV Analysis -->
+            <div class="card">
+                <div class="card-header">
+                    <span>⚡ Top Engine Analysis (MultiPV)</span>
+                    <span style="font-size: 0.75rem; color: #888;" id="engine-status-tag">Ready</span>
+                </div>
+                <div class="multipv-list" id="multipv-container">
+                    <div class="multipv-item top">
+                        <div class="multipv-header">
+                            <span style="font-weight: 700;">1. Searching...</span>
+                            <span class="score-pill score-even">+0.00</span>
+                        </div>
+                        <div class="pv-moves">e2e4 e7e5 g1f3 b8c6</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Move History -->
+            <div class="card">
+                <div class="card-header">Move History</div>
+                <div class="moves-box" id="moves-box"></div>
+            </div>
+
+            <!-- Settings & FEN -->
+            <div class="card">
+                <div class="card-header">Position & Engine Settings</div>
+                <div class="switch-container">
+                    <span>NNUE Evaluation:</span>
+                    <input type="checkbox" id="check-nnue" checked onchange="toggleNNUE(this.checked)">
+                </div>
+                <div class="switch-container">
+                    <span>MultiPV Lines:</span>
+                    <select id="select-multipv" onchange="changeMultiPV(this.value)" style="background:#333;color:#fff;border:1px solid #555;padding:2px 6px;border-radius:4px;">
+                        <option value="1">1 Line</option>
+                        <option value="2">2 Lines</option>
+                        <option value="3" selected>3 Lines</option>
+                        <option value="5">5 Lines</option>
+                    </select>
+                </div>
+                <input type="text" class="fen-input" id="fen-input" placeholder="Paste FEN here..." onchange="loadCustomFen(this.value)">
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const PIECE_SYMBOLS = {
+            'P': '♙', 'N': '♘', 'B': '♗', 'R': '♖', 'Q': '♕', 'K': '♔',
+            'p': '♟', 'n': '♞', 'b': '♝', 'r': '♜', 'q': '♛', 'k': '♚'
+        };
+
+        const PIECE_IMAGES = {
+            'P': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/wp.png',
+            'N': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/wn.png',
+            'B': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/wb.png',
+            'R': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/wr.png',
+            'Q': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/wq.png',
+            'K': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/wk.png',
+            'p': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/bp.png',
+            'n': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/bn.png',
+            'b': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/bb.png',
+            'r': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/br.png',
+            'q': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/bq.png',
+            'k': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/bk.png'
+        };
+
+        let currentFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        let boardState = Array(64).fill(null);
+        let selectedSquare = null;
+        let isFlipped = false;
+        let lastMove = null;
+        let moveHistory = [];
+        let autoPlayEngine = false;
+        let multiPVLines = {};
+
+        function initBoardFromFen(fen) {
+            boardState.fill(null);
+            const [placement, activeColor] = fen.split(' ');
+            let rank = 7, file = 0;
+            for (const char of placement) {
+                if (char === '/') {
+                    rank--;
+                    file = 0;
+                } else if (char >= '1' && char <= '8') {
+                    file += parseInt(char);
+                } else {
+                    boardState[rank * 8 + file] = char;
+                    file++;
+                }
+            }
+            renderBoard();
+        }
+
+        function renderBoard() {
+            const boardEl = document.getElementById('board');
+            boardEl.innerHTML = '';
+
+            for (let r = 0; r < 8; r++) {
+                for (let f = 0; f < 8; f++) {
+                    const rank = isFlipped ? r : (7 - r);
+                    const file = isFlipped ? (7 - f) : f;
+                    const sq = rank * 8 + file;
+                    const isDark = (rank + file) % 2 === 0;
+
+                    const sqEl = document.createElement('div');
+                    sqEl.className = `square ${isDark ? 'dark' : 'light'}`;
+                    sqEl.dataset.sq = sq;
+
+                    if (selectedSquare === sq) sqEl.classList.add('selected');
+                    if (lastMove && (lastMove.from === sq || lastMove.to === sq)) {
+                        sqEl.classList.add('last-move');
+                    }
+
+                    const piece = boardState[sq];
+                    if (piece) {
+                        const pieceEl = document.createElement('div');
+                        pieceEl.className = 'piece';
+                        pieceEl.style.backgroundImage = `url('${PIECE_IMAGES[piece]}')`;
+                        sqEl.appendChild(pieceEl);
+                    }
+
+                    sqEl.onclick = () => onSquareClick(sq);
+                    boardEl.appendChild(sqEl);
+                }
+            }
+        }
+
+        function onSquareClick(sq) {
+            if (selectedSquare === null) {
+                if (boardState[sq] !== null) {
+                    selectedSquare = sq;
+                    renderBoard();
+                }
+            } else {
+                if (selectedSquare === sq) {
+                    selectedSquare = null;
+                    renderBoard();
+                } else {
+                    makeMove(selectedSquare, sq);
+                    selectedSquare = null;
+                }
+            }
+        }
+
+        function makeMove(from, to) {
+            const fromAlg = sqToCoord(from);
+            const toAlg = sqToCoord(to);
+            let uciMove = fromAlg + toAlg;
+
+            // Simple pawn promotion to queen auto-detect
+            const piece = boardState[from];
+            if (piece === 'P' && to >= 56) uciMove += 'q';
+            if (piece === 'p' && to <= 7) uciMove += 'q';
+
+            // Optimistic board update
+            boardState[to] = boardState[from];
+            boardState[from] = null;
+            lastMove = { from, to };
+            moveHistory.push(uciMove);
+
+            renderBoard();
+            updateMovesBox();
+
+            // Send to engine
+            sendUciCommand(`position startpos moves ${moveHistory.join(' ')}`);
+            if (autoPlayEngine) {
+                sendUciCommand('go movetime 500');
+            } else {
+                sendUciCommand('go depth 10');
+            }
+        }
+
+        function sqToCoord(sq) {
+            const file = String.fromCharCode('a'.charCodeAt(0) + (sq % 8));
+            const rank = (Math.floor(sq / 8) + 1).toString();
+            return file + rank;
+        }
+
+        function coordToSq(coord) {
+            const file = coord.charCodeAt(0) - 'a'.charCodeAt(0);
+            const rank = parseInt(coord[1]) - 1;
+            return rank * 8 + file;
+        }
+
+        function updateMovesBox() {
+            const box = document.getElementById('moves-box');
+            box.innerHTML = '';
+            for (let i = 0; i < moveHistory.length; i += 2) {
+                const row = document.createElement('div');
+                row.className = 'move-row';
+                row.innerHTML = `
+                    <span class="move-num">${Math.floor(i / 2) + 1}.</span>
+                    <span class="move-white">${moveHistory[i]}</span>
+                    <span class="move-black">${moveHistory[i + 1] || ''}</span>
+                `;
+                box.appendChild(row);
+            }
+            box.scrollTop = box.scrollHeight;
+        }
+
+        function flipBoard() {
+            isFlipped = !isFlipped;
+            renderBoard();
+        }
+
+        function newGame() {
+            moveHistory = [];
+            lastMove = null;
+            selectedSquare = null;
+            multiPVLines = {};
+            document.getElementById('multipv-container').innerHTML = '';
+            initBoardFromFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+            updateMovesBox();
+            sendUciCommand('ucinewgame');
+            sendUciCommand('position startpos');
+            sendUciCommand('go depth 10');
+        }
+
+        function undoMove() {
+            if (moveHistory.length === 0) return;
+            moveHistory.pop();
+            initBoardFromFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+            for (const m of moveHistory) {
+                const from = coordToSq(m.slice(0, 2));
+                const to = coordToSq(m.slice(2, 4));
+                boardState[to] = boardState[from];
+                boardState[from] = null;
+            }
+            lastMove = moveHistory.length ? {
+                from: coordToSq(moveHistory[moveHistory.length - 1].slice(0, 2)),
+                to: coordToSq(moveHistory[moveHistory.length - 1].slice(2, 4))
+            } : null;
+            renderBoard();
+            updateMovesBox();
+            sendUciCommand(`position startpos moves ${moveHistory.join(' ')}`);
+            sendUciCommand('go depth 10');
+        }
+
+        function toggleEnginePlay() {
+            autoPlayEngine = !autoPlayEngine;
+            const btn = document.getElementById('btn-toggle-engine');
+            btn.textContent = autoPlayEngine ? "Stop Engine" : "Play Engine";
+            btn.className = autoPlayEngine ? "primary" : "";
+            if (autoPlayEngine && moveHistory.length % 2 === 1) {
+                sendUciCommand('go movetime 500');
+            }
+        }
+
+        function toggleNNUE(enabled) {
+            sendUciCommand(`setoption name UseNNUE value ${enabled}`);
+            sendUciCommand(`position startpos moves ${moveHistory.join(' ')}`);
+            sendUciCommand('go depth 10');
+        }
+
+        function changeMultiPV(val) {
+            sendUciCommand(`setoption name MultiPV value ${val}`);
+            sendUciCommand(`position startpos moves ${moveHistory.join(' ')}`);
+            sendUciCommand('go depth 10');
+        }
+
+        function loadCustomFen(fen) {
+            if (!fen.trim()) return;
+            moveHistory = [];
+            initBoardFromFen(fen);
+            sendUciCommand(`position fen ${fen}`);
+            sendUciCommand('go depth 10');
+        }
+
+        async function sendUciCommand(cmd) {
+            try {
+                await fetch('/api/cmd', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cmd })
+                });
+            } catch (e) {
+                console.error("Failed to send command:", e);
+            }
+        }
+
+        // Server-Sent Events (SSE) stream listener
+        const sse = new EventSource('/api/stream');
+        sse.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+
+            if (data.type === 'info' && data.info) {
+                const info = data.info;
+                if (info.depth) document.getElementById('stat-depth').textContent = info.depth;
+                if (info.nodes) document.getElementById('stat-nodes').textContent = info.nodes.toLocaleString();
+                if (info.nps) document.getElementById('stat-nps').textContent = (info.nps / 1000).toFixed(0) + 'k';
+
+                if (info.score !== undefined) {
+                    let scoreTxt = (info.score / 100).toFixed(2);
+                    if (info.scoreType === 'mate') scoreTxt = 'M' + info.score;
+                    else if (info.score > 0) scoreTxt = '+' + scoreTxt;
+                    document.getElementById('stat-score').textContent = scoreTxt;
+                    updateEvalBar(info.score, info.scoreType);
+                }
+
+                if (info.multipv !== undefined) {
+                    multiPVLines[info.multipv] = info;
+                    renderMultiPV();
+                }
+            } else if (data.type === 'bestmove') {
+                if (autoPlayEngine && moveHistory.length % 2 === 1) {
+                    const m = data.move;
+                    if (m && m !== '(none)') {
+                        const from = coordToSq(m.slice(0, 2));
+                        const to = coordToSq(m.slice(2, 4));
+                        boardState[to] = boardState[from];
+                        boardState[from] = null;
+                        lastMove = { from, to };
+                        moveHistory.push(m);
+                        renderBoard();
+                        updateMovesBox();
+                    }
+                }
+            }
+        };
+
+        function updateEvalBar(score, type) {
+            let winPercent = 50;
+            if (type === 'mate') {
+                winPercent = score > 0 ? 100 : 0;
+            } else {
+                // Sigmoid win probability: 1 / (1 + 10^(-score / 400))
+                winPercent = 100 / (1 + Math.pow(10, -score / 400));
+            }
+            winPercent = Math.max(5, Math.min(95, winPercent));
+            const blackPercent = 100 - winPercent;
+
+            document.getElementById('eval-bar-black').style.height = `${blackPercent}%`;
+            let txt = (score / 100).toFixed(1);
+            if (type === 'mate') txt = 'M' + score;
+            else if (score > 0) txt = '+' + txt;
+            document.getElementById('eval-bar-text').textContent = txt;
+        }
+
+        function renderMultiPV() {
+            const container = document.getElementById('multipv-container');
+            container.innerHTML = '';
+
+            const keys = Object.keys(multiPVLines).sort((a,b) => parseInt(a) - parseInt(b));
+            for (const k of keys) {
+                const line = multiPVLines[k];
+                const item = document.createElement('div');
+                item.className = `multipv-item ${k === '1' ? 'top' : ''}`;
+
+                let scoreClass = 'score-even';
+                let scoreTxt = '+0.00';
+                if (line.score > 15) scoreClass = 'score-pos';
+                else if (line.score < -15) scoreClass = 'score-neg';
+
+                if (line.score !== undefined) {
+                    scoreTxt = (line.score / 100).toFixed(2);
+                    if (line.scoreType === 'mate') scoreTxt = 'M' + line.score;
+                    else if (line.score > 0) scoreTxt = '+' + scoreTxt;
+                }
+
+                item.innerHTML = `
+                    <div class="multipv-header">
+                        <span style="font-weight: 700;">Line ${k} (d${line.depth || 0})</span>
+                        <span class="score-pill ${scoreClass}">${scoreTxt}</span>
+                    </div>
+                    <div class="pv-moves">${line.pv || ''}</div>
+                `;
+                container.appendChild(item);
+            }
+        }
+
+        // Initialize board
+        initBoardFromFen(currentFen);
+        sendUciCommand('position startpos');
+        sendUciCommand('go depth 10');
+    </script>
+</body>
+</html>
