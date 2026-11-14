@@ -24,7 +24,7 @@ void init_nnue()
     // Try to load default nnue file if present
     if (load_nnue_file("nnue.bin"))
     {
-        use_nnue = true;
+        use_nnue = false;
     }
     else
     {

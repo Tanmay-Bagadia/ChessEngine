@@ -65,6 +65,7 @@ function startEngine() {
     });
 
     sendUciCommand('uci');
+    sendUciCommand('setoption name UseNNUE value false');
     sendUciCommand('setoption name MultiPV value 3');
     sendUciCommand('isready');
 }
@@ -151,6 +152,35 @@ const server = http.createServer((req, res) => {
                 return;
             }
             res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+            res.end(data);
+        });
+        return;
+    }
+
+    if (url.pathname === '/chess.min.js') {
+        const filePath = path.join(__dirname, 'chess.min.js');
+        fs.readFile(filePath, (err, data) => {
+            if (err) {
+                res.writeHead(404, { 'Content-Type': 'text/plain' });
+                res.end('Not Found');
+                return;
+            }
+            res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8' });
+            res.end(data);
+        });
+        return;
+    }
+
+    if (url.pathname.startsWith('/pieces/')) {
+        const pieceFile = path.basename(url.pathname);
+        const filePath = path.join(__dirname, 'pieces', pieceFile);
+        fs.readFile(filePath, (err, data) => {
+            if (err) {
+                res.writeHead(404, { 'Content-Type': 'text/plain' });
+                res.end('Not Found');
+                return;
+            }
+            res.writeHead(200, { 'Content-Type': 'image/svg+xml; charset=utf-8' });
             res.end(data);
         });
         return;
