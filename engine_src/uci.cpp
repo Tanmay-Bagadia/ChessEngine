@@ -10,6 +10,7 @@
 #include <thread>
 #include <cctype>
 #include <algorithm>
+#include <vector>
 
 static Position pos;
 static SearchInfo info;
@@ -265,6 +266,65 @@ void uci_loop()
         {
             stop_search();
             print_board(pos);
+        }
+        else if (token == "fen")
+        {
+            stop_search();
+            std::cout << "fen " << export_fen(pos) << std::endl;
+        }
+        else if (token == "legalmoves")
+        {
+            stop_search();
+            MoveList ml;
+            generate_moves(pos, ml);
+            std::cout << "legalmoves";
+            for (int i = 0; i < ml.size(); i++)
+            {
+                Position copy = pos;
+                if (make_move(copy, ml[i]))
+                {
+                    std::cout << " " << move_to_uci(ml[i]);
+                }
+            }
+            std::cout << std::endl;
+        }
+        else if (token == "state")
+        {
+            stop_search();
+            int side = pos.side_to_move;
+            int enemy = side ^ 1;
+            int king_sq = (pos.pieces[side][KING] != 0ULL) ? __builtin_ctzll(pos.pieces[side][KING]) : -1;
+            bool in_check = (king_sq != -1) && is_square_attacked(king_sq, enemy, pos);
+
+            MoveList ml;
+            generate_moves(pos, ml);
+            std::vector<std::string> legal_moves;
+            for (int i = 0; i < ml.size(); i++)
+            {
+                Position copy = pos;
+                if (make_move(copy, ml[i]))
+                {
+                    legal_moves.push_back(move_to_uci(ml[i]));
+                }
+            }
+
+            bool checkmate = (legal_moves.empty() && in_check);
+            bool stalemate = (legal_moves.empty() && !in_check);
+            std::string fen = export_fen(pos);
+
+            std::cout << "state fen " << fen
+                      << " side " << (side == WHITE ? "w" : "b")
+                      << " check " << (in_check ? 1 : 0)
+                      << " mate " << (checkmate ? 1 : 0)
+                      << " stalemate " << (stalemate ? 1 : 0)
+                      << " halfmove " << pos.halfmove_clock
+                      << " fullmove " << pos.fullmove_number
+                      << " legalmoves";
+            for (const auto &m : legal_moves)
+            {
+                std::cout << " " << m;
+            }
+            std::cout << std::endl;
         }
     }
 

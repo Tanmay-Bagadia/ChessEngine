@@ -1,5 +1,6 @@
 #pragma once
 #include "bitboard.h"
+#include <string>
 
 using Move = uint16_t;
 
@@ -50,5 +51,7 @@ bool make_move(Position &pos, Move move);
 void init_position(Position &pos);
 
 void load_fen(Position &pos, const char *fen);
+
+std::string export_fen(const Position &pos);
 
 void print_board(Position &pos);

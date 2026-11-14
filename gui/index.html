@@ -4,12 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TanmayChess | Modern Analysis & Play GUI</title>
-    <script src="/chess.min.js"></script>
-    <script>
-        if (typeof Chess === 'undefined') {
-            document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"><\/script>');
-        }
-    </script>
     <style>
         :root {
             --bg-primary: #161512;
@@ -534,29 +528,85 @@
             return `/pieces/${color}${type.toUpperCase()}.svg`;
         }
 
-        // Initialize chess.js engine instance
-        let game = new Chess();
+        // Convert FEN string to 8x8 2D array: rank 8 down to 1
+        function fenToBoard(fen) {
+            const board = Array(8).fill(null).map(() => Array(8).fill(null));
+            if (!fen) return board;
+            const parts = fen.trim().split(' ');
+            const ranks = parts[0].split('/');
+
+            for (let r = 0; r < 8 && r < ranks.length; r++) {
+                let f = 0;
+                const rankStr = ranks[r];
+                for (let i = 0; i < rankStr.length && f < 8; i++) {
+                    const ch = rankStr[i];
+                    if (ch >= '1' && ch <= '8') {
+                        f += parseInt(ch, 10);
+                    } else {
+                        const color = (ch === ch.toUpperCase()) ? 'w' : 'b';
+                        const type = ch.toLowerCase();
+                        board[r][f] = { type, color };
+                        f++;
+                    }
+                }
+            }
+            return board;
+        }
+
+        function getKingSquare(board, color) {
+            for (let r = 0; r < 8; r++) {
+                for (let f = 0; f < 8; f++) {
+                    const p = board[r][f];
+                    if (p && p.type === 'k' && p.color === color) {
+                        return String.fromCharCode('a'.charCodeAt(0) + f) + (8 - r);
+                    }
+                }
+            }
+            return null;
+        }
+
+        function getEnPassantSquare(fen) {
+            if (!fen) return '-';
+            const parts = fen.trim().split(' ');
+            return parts[3] || '-';
+        }
+
+        let gameState = {
+            fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+            side: 'w',
+            check: false,
+            mate: false,
+            stalemate: false,
+            halfmove: 0,
+            fullmove: 1,
+            legalMoves: []
+        };
+        let gameMoves = [];
         let selectedSquare = null;
         let legalTargets = [];
         let isFlipped = false;
         let lastMove = null;
         let playAgainstEngine = true;
-        let playerColor = 'w'; // 'w' or 'b'
+        let playerColor = 'w';
         let pendingPromotion = null;
         let multiPVLines = {};
+        let boardMatrix = fenToBoard(gameState.fen);
 
-        function getPieceImage(type, color) {
-            // In our map: lowercase for white, uppercase for black
-            const key = (color === 'w') ? type.toLowerCase() : type.toUpperCase();
-            return PIECE_IMAGES[key];
+        function getPieceAt(coord) {
+            const col = coord.charCodeAt(0) - 'a'.charCodeAt(0);
+            const row = 8 - parseInt(coord[1], 10);
+            if (row >= 0 && row < 8 && col >= 0 && col < 8) {
+                return boardMatrix[row][col];
+            }
+            return null;
         }
 
         function renderBoard() {
             const boardEl = document.getElementById('board');
             boardEl.innerHTML = '';
 
-            const boardData = game.board(); // 8x8 array: rank 8 down to 1
-            const inCheckSquare = game.in_check() ? getKingSquare(game.turn()) : null;
+            boardMatrix = fenToBoard(gameState.fen);
+            const inCheckSquare = gameState.check ? getKingSquare(boardMatrix, gameState.side) : null;
 
             for (let r = 0; r < 8; r++) {
                 for (let f = 0; f < 8; f++) {
@@ -578,16 +628,18 @@
                     }
 
                     // Legal destination indicators
-                    const targetMove = legalTargets.find(m => m.to === squareCoord);
+                    const targetMove = legalTargets.find(m => m.slice(2, 4) === squareCoord);
                     if (targetMove) {
-                        if (targetMove.captured || targetMove.flags.includes('e')) {
+                        const targetPiece = boardMatrix[row][col];
+                        const isCapture = (targetPiece !== null) || (targetMove.length >= 4 && squareCoord === getEnPassantSquare(gameState.fen));
+                        if (isCapture) {
                             sqEl.classList.add('legal-capture');
                         } else {
                             sqEl.classList.add('legal-target');
                         }
                     }
 
-                    const piece = boardData[row][col];
+                    const piece = boardMatrix[row][col];
                     if (piece) {
                         const pieceEl = document.createElement('div');
                         pieceEl.className = 'piece';
@@ -603,31 +655,18 @@
             checkGameOver();
         }
 
-        function getKingSquare(color) {
-            const boardData = game.board();
-            for (let r = 0; r < 8; r++) {
-                for (let f = 0; f < 8; f++) {
-                    const p = boardData[r][f];
-                    if (p && p.type === 'k' && p.color === color) {
-                        return String.fromCharCode('a'.charCodeAt(0) + f) + (8 - r);
-                    }
-                }
-            }
-            return null;
-        }
-
         function onSquareClick(coord) {
-            if (game.game_over()) return;
+            if (gameState.mate || gameState.stalemate) return;
 
             // If it's engine's turn and playing vs engine, block human clicks
-            if (playAgainstEngine && game.turn() !== playerColor) return;
+            if (playAgainstEngine && gameState.side !== playerColor) return;
 
             if (selectedSquare === null) {
                 // Select a piece only if it belongs to current player
-                const piece = game.get(coord);
-                if (piece && piece.color === game.turn()) {
+                const piece = getPieceAt(coord);
+                if (piece && piece.color === gameState.side) {
                     selectedSquare = coord;
-                    legalTargets = game.moves({ square: coord, verbose: true });
+                    legalTargets = (gameState.legalMoves || []).filter(m => m.startsWith(coord));
                     renderBoard();
                 }
             } else {
@@ -640,23 +679,24 @@
                 }
 
                 // Check if target is a legal move
-                const moveObj = legalTargets.find(m => m.to === coord);
-                if (moveObj) {
-                    if (moveObj.flags.includes('p')) {
-                        // Promotion move: show picker
-                        showPromotionModal(selectedSquare, coord);
+                const matchingMoves = legalTargets.filter(m => m.slice(2, 4) === coord);
+                if (matchingMoves.length > 0) {
+                    // Check if pawn promotion move
+                    const promoMove = matchingMoves.find(m => m.length > 4);
+                    if (promoMove) {
+                        showPromotionModal(selectedSquare, coord, matchingMoves);
                         return;
                     }
 
-                    executeMove({ from: selectedSquare, to: coord });
+                    executeMove(matchingMoves[0]);
                     selectedSquare = null;
                     legalTargets = [];
                 } else {
                     // Clicked another friendly piece: change selection
-                    const piece = game.get(coord);
-                    if (piece && piece.color === game.turn()) {
+                    const piece = getPieceAt(coord);
+                    if (piece && piece.color === gameState.side) {
                         selectedSquare = coord;
-                        legalTargets = game.moves({ square: coord, verbose: true });
+                        legalTargets = (gameState.legalMoves || []).filter(m => m.startsWith(coord));
                         renderBoard();
                     } else {
                         selectedSquare = null;
@@ -667,38 +707,47 @@
             }
         }
 
-        function executeMove(moveData) {
-            const moveRes = game.move(moveData);
-            if (!moveRes) return false;
+        async function executeMove(uciMove) {
+            try {
+                lastMove = { from: uciMove.slice(0, 2), to: uciMove.slice(2, 4) };
+                renderBoard();
 
-            lastMove = { from: moveRes.from, to: moveRes.to };
-            renderBoard();
-            updateMovesBox();
-            document.getElementById('fen-input').value = game.fen();
-
-            sendPositionToEngine();
-
-            if (playAgainstEngine && !game.game_over() && game.turn() !== playerColor) {
-                requestEngineMove();
+                const res = await fetch('/api/move', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ move: uciMove })
+                });
+                const data = await res.json();
+                if (data.ok && data.state) {
+                    gameState = data.state;
+                    gameMoves = data.moves || [];
+                    document.getElementById('fen-input').value = gameState.fen;
+                    renderBoard();
+                    updateMovesBox();
+                } else if (data.error) {
+                    console.error("Move error:", data.error);
+                }
+            } catch (e) {
+                console.error("Execute move failed:", e);
             }
-            return true;
         }
 
-        function showPromotionModal(from, to) {
+        function showPromotionModal(from, to, promoMoves) {
             pendingPromotion = { from, to };
             const modal = document.getElementById('promo-modal');
             const container = document.getElementById('promo-pieces-container');
             container.innerHTML = '';
 
             const pieces = ['q', 'r', 'b', 'n'];
-            const color = game.turn();
+            const color = gameState.side;
             pieces.forEach(p => {
                 const btn = document.createElement('div');
                 btn.className = 'promo-piece-btn';
                 btn.style.backgroundImage = `url('${getPieceImage(p, color)}')`;
                 btn.onclick = () => {
                     modal.style.display = 'none';
-                    executeMove({ from: pendingPromotion.from, to: pendingPromotion.to, promotion: p });
+                    const chosen = promoMoves.find(m => m.endsWith(p)) || (from + to + p);
+                    executeMove(chosen);
                     pendingPromotion = null;
                     selectedSquare = null;
                     legalTargets = [];
@@ -712,149 +761,143 @@
         function updateMovesBox() {
             const box = document.getElementById('moves-box');
             box.innerHTML = '';
-            const history = game.history();
 
-            for (let i = 0; i < history.length; i += 2) {
+            for (let i = 0; i < gameMoves.length; i += 2) {
                 const row = document.createElement('div');
                 row.className = 'move-row';
                 row.innerHTML = `
                     <span class="move-num">${Math.floor(i / 2) + 1}.</span>
-                    <span class="move-white">${history[i]}</span>
-                    <span class="move-black">${history[i + 1] || ''}</span>
+                    <span class="move-white">${gameMoves[i]}</span>
+                    <span class="move-black">${gameMoves[i + 1] || ''}</span>
                 `;
                 box.appendChild(row);
             }
             box.scrollTop = box.scrollHeight;
         }
 
-        function sendPositionToEngine() {
-            const history = game.history({ verbose: true });
-            let uciMoves = history.map(m => m.from + m.to + (m.promotion || '')).join(' ');
+        async function newGame() {
+            try {
+                selectedSquare = null;
+                legalTargets = [];
+                lastMove = null;
+                multiPVLines = {};
+                document.getElementById('multipv-container').innerHTML = '';
+                document.getElementById('promo-modal').style.display = 'none';
+                document.getElementById('game-status-banner').style.display = 'none';
 
-            if (uciMoves) {
-                sendUciCommand(`position startpos moves ${uciMoves}`);
-            } else {
-                sendUciCommand('position startpos');
+                const res = await fetch('/api/newgame', { method: 'POST' });
+                const data = await res.json();
+                if (data.ok && data.state) {
+                    gameState = data.state;
+                    gameMoves = data.moves || [];
+                    document.getElementById('fen-input').value = gameState.fen;
+                    renderBoard();
+                    updateMovesBox();
+                }
+            } catch (e) {
+                console.error("New game failed:", e);
             }
         }
 
-        function requestEngineMove() {
-            document.getElementById('engine-status-tag').textContent = "Thinking...";
-            document.getElementById('engine-status-tag').style.color = "#e5c07b";
-
-            const thinkTime = document.getElementById('select-think-time').value;
-            sendUciCommand(`go movetime ${thinkTime}`);
+        async function undoMove() {
+            try {
+                selectedSquare = null;
+                legalTargets = [];
+                const res = await fetch('/api/undo', { method: 'POST' });
+                const data = await res.json();
+                if (data.ok && data.state) {
+                    gameState = data.state;
+                    gameMoves = data.moves || [];
+                    lastMove = gameMoves.length > 0 ? {
+                        from: gameMoves[gameMoves.length - 1].slice(0, 2),
+                        to: gameMoves[gameMoves.length - 1].slice(2, 4)
+                    } : null;
+                    document.getElementById('fen-input').value = gameState.fen;
+                    renderBoard();
+                    updateMovesBox();
+                }
+            } catch (e) {
+                console.error("Undo failed:", e);
+            }
         }
 
-        function flipBoard() {
+        async function flipBoard() {
             isFlipped = !isFlipped;
             playerColor = isFlipped ? 'b' : 'w';
             renderBoard();
 
-            // If player switched to Black and it's White's turn, engine plays first move
-            if (playAgainstEngine && game.turn() !== playerColor && !game.game_over()) {
-                requestEngineMove();
-            }
+            await fetch('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ playerColor })
+            });
         }
 
-        function newGame() {
-            game = new Chess();
-            selectedSquare = null;
-            legalTargets = [];
-            lastMove = null;
-            multiPVLines = {};
-            document.getElementById('multipv-container').innerHTML = '';
-            document.getElementById('promo-modal').style.display = 'none';
-            document.getElementById('game-status-banner').style.display = 'none';
-            document.getElementById('fen-input').value = game.fen();
-
-            sendUciCommand('ucinewgame');
-            sendUciCommand('position startpos');
-            renderBoard();
-            updateMovesBox();
-
-            if (playAgainstEngine && playerColor === 'b') {
-                requestEngineMove();
-            }
-        }
-
-        function undoMove() {
-            if (game.history().length === 0) return;
-
-            // In play mode, undo 2 plies (engine move + human move)
-            if (playAgainstEngine && game.history().length >= 2) {
-                game.undo();
-                game.undo();
-            } else {
-                game.undo();
-            }
-
-            const history = game.history({ verbose: true });
-            lastMove = history.length ? { from: history[history.length - 1].from, to: history[history.length - 1].to } : null;
-            selectedSquare = null;
-            legalTargets = [];
-
-            renderBoard();
-            updateMovesBox();
-            document.getElementById('fen-input').value = game.fen();
-            sendPositionToEngine();
-        }
-
-        function toggleEnginePlay() {
+        async function toggleEnginePlay() {
             playAgainstEngine = !playAgainstEngine;
             const btn = document.getElementById('btn-toggle-engine');
             btn.textContent = playAgainstEngine ? "Play Engine: ON" : "Play Engine: OFF";
             btn.className = playAgainstEngine ? "primary active" : "";
 
-            if (playAgainstEngine && game.turn() !== playerColor && !game.game_over()) {
-                requestEngineMove();
-            }
+            await fetch('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ playAgainstEngine })
+            });
         }
 
-        function changeEvalMode(val) {
+        async function changeEvalMode(val) {
             const isNNUE = (val === 'nnue');
-            sendUciCommand(`setoption name UseNNUE value ${isNNUE}`);
+            await sendUciCommand(`setoption name UseNNUE value ${isNNUE}`);
             document.getElementById('engine-name-badge').textContent = isNNUE ? "Simple768 NNUE" : "Classical PeSTO Engine";
-            sendPositionToEngine();
             sendUciCommand('go depth 8');
         }
 
-        function changeMultiPV(val) {
-            sendUciCommand(`setoption name MultiPV value ${val}`);
-            sendPositionToEngine();
+        async function changeMultiPV(val) {
+            await sendUciCommand(`setoption name MultiPV value ${val}`);
             sendUciCommand('go depth 8');
         }
 
-        function loadCustomFen(fen) {
+        async function loadCustomFen(fen) {
             if (!fen.trim()) return;
-            const valid = game.load(fen.trim());
-            if (!valid) {
-                alert("Invalid FEN string!");
-                return;
+            try {
+                const res = await fetch('/api/fen', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fen: fen.trim() })
+                });
+                const data = await res.json();
+                if (data.ok && data.state) {
+                    gameState = data.state;
+                    gameMoves = [];
+                    lastMove = null;
+                    selectedSquare = null;
+                    legalTargets = [];
+                    renderBoard();
+                    updateMovesBox();
+                    sendUciCommand('go depth 8');
+                } else {
+                    alert("Engine rejected FEN: " + (data.error || "Invalid position"));
+                }
+            } catch (e) {
+                console.error("Load custom FEN error:", e);
             }
-            selectedSquare = null;
-            legalTargets = [];
-            lastMove = null;
-            renderBoard();
-            updateMovesBox();
-            sendUciCommand(`position fen ${fen.trim()}`);
-            sendUciCommand('go depth 8');
         }
 
         function checkGameOver() {
             const banner = document.getElementById('game-status-banner');
-            if (game.in_checkmate()) {
-                const winner = (game.turn() === 'w') ? 'Black' : 'White';
+            if (gameState.mate) {
+                const winner = (gameState.side === 'w') ? 'Black' : 'White';
                 banner.className = `game-status-banner ${winner === (playerColor === 'w' ? 'White' : 'Black') ? 'banner-win' : 'banner-loss'}`;
                 banner.textContent = `🏆 Checkmate! ${winner} wins.`;
                 banner.style.display = 'block';
-            } else if (game.in_draw() || game.in_stalemate() || game.in_threefold_repetition() || game.insufficient_material()) {
+            } else if (gameState.stalemate) {
                 banner.className = 'game-status-banner banner-draw';
-                let reason = "Draw";
-                if (game.in_stalemate()) reason = "Stalemate";
-                else if (game.in_threefold_repetition()) reason = "Threefold Repetition";
-                else if (game.insufficient_material()) reason = "Insufficient Material";
-                banner.textContent = `🤝 Game Drawn by ${reason}.`;
+                banner.textContent = `🤝 Game Drawn by Stalemate.`;
+                banner.style.display = 'block';
+            } else if (gameState.halfmove >= 100) {
+                banner.className = 'game-status-banner banner-draw';
+                banner.textContent = `🤝 Game Drawn by 50-move Rule.`;
                 banner.style.display = 'block';
             } else {
                 banner.style.display = 'none';
@@ -878,7 +921,26 @@
         sse.onmessage = (event) => {
             const data = JSON.parse(event.data);
 
-            if (data.type === 'info' && data.info) {
+            if (data.type === 'state' && data.state) {
+                gameState = data.state;
+                if (data.moves) {
+                    gameMoves = data.moves;
+                    if (gameMoves.length > 0) {
+                        const last = gameMoves[gameMoves.length - 1];
+                        lastMove = { from: last.slice(0, 2), to: last.slice(2, 4) };
+                    } else {
+                        lastMove = null;
+                    }
+                }
+                if (data.playSettings) {
+                    playAgainstEngine = data.playSettings.playAgainstEngine;
+                    playerColor = data.playSettings.playerColor;
+                }
+                document.getElementById('fen-input').value = gameState.fen;
+                renderBoard();
+                updateMovesBox();
+            }
+            else if (data.type === 'info' && data.info) {
                 const info = data.info;
                 if (info.depth) document.getElementById('stat-depth').textContent = info.depth;
                 if (info.nodes) document.getElementById('stat-nodes').textContent = info.nodes.toLocaleString();
@@ -896,20 +958,10 @@
                     multiPVLines[info.multipv] = info;
                     renderMultiPV();
                 }
-            } else if (data.type === 'bestmove') {
+            }
+            else if (data.type === 'bestmove') {
                 document.getElementById('engine-status-tag').textContent = "Ready";
                 document.getElementById('engine-status-tag').style.color = "#8edc75";
-
-                if (playAgainstEngine && game.turn() !== playerColor && !game.game_over()) {
-                    const m = data.move;
-                    if (m && m !== '(none)') {
-                        const from = m.slice(0, 2);
-                        const to = m.slice(2, 4);
-                        const promo = m.length > 4 ? m[4] : undefined;
-
-                        executeMove({ from, to, promotion: promo });
-                    }
-                }
             }
         };
 
@@ -934,7 +986,7 @@
             const container = document.getElementById('multipv-container');
             container.innerHTML = '';
 
-            const keys = Object.keys(multiPVLines).sort((a,b) => parseInt(a) - parseInt(b));
+            const keys = Object.keys(multiPVLines).sort((a,b) => parseInt(a, 10) - parseInt(b, 10));
             for (const k of keys) {
                 const line = multiPVLines[k];
                 const item = document.createElement('div');
@@ -962,13 +1014,20 @@
             }
         }
 
-        // Initialize board
-        renderBoard();
-        document.getElementById('fen-input').value = game.fen();
-        sendUciCommand('setoption name UseNNUE value false');
-        sendUciCommand('setoption name MultiPV value 3');
-        sendPositionToEngine();
-        sendUciCommand('go depth 8');
+        // Initial state fetch
+        fetch('/api/state').then(r => r.json()).then(data => {
+            if (data.state) {
+                gameState = data.state;
+                gameMoves = data.moves || [];
+                if (data.playSettings) {
+                    playAgainstEngine = data.playSettings.playAgainstEngine;
+                    playerColor = data.playSettings.playerColor;
+                }
+                document.getElementById('fen-input').value = gameState.fen;
+                renderBoard();
+                updateMovesBox();
+            }
+        }).catch(console.error);
     </script>
 </body>
 </html>

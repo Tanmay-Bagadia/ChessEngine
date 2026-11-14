@@ -379,3 +379,76 @@ bool make_move(Position &pos, Move move)
 
     return true;
 }
+
+std::string export_fen(const Position &pos)
+{
+    const char piece_chars[2][6] = {
+        {'P', 'N', 'B', 'R', 'Q', 'K'},
+        {'p', 'n', 'b', 'r', 'q', 'k'}};
+
+    std::string fen = "";
+    for (int rank = 7; rank >= 0; rank--)
+    {
+        int empty_count = 0;
+        for (int file = 0; file < 8; file++)
+        {
+            int square = rank * 8 + file;
+            char piece_char = 0;
+            for (int c = 0; c < 2; c++)
+            {
+                for (int p = 0; p < 6; p++)
+                {
+                    if (pos.pieces[c][p] & (1ULL << square))
+                    {
+                        piece_char = piece_chars[c][p];
+                        break;
+                    }
+                }
+                if (piece_char) break;
+            }
+
+            if (piece_char)
+            {
+                if (empty_count > 0)
+                {
+                    fen += std::to_string(empty_count);
+                    empty_count = 0;
+                }
+                fen += piece_char;
+            }
+            else
+            {
+                empty_count++;
+            }
+        }
+        if (empty_count > 0)
+            fen += std::to_string(empty_count);
+        if (rank > 0)
+            fen += '/';
+    }
+
+    fen += (pos.side_to_move == WHITE) ? " w " : " b ";
+
+    std::string castling = "";
+    if (pos.castling_rights & WK) castling += 'K';
+    if (pos.castling_rights & WQ) castling += 'Q';
+    if (pos.castling_rights & BK) castling += 'k';
+    if (pos.castling_rights & BQ) castling += 'q';
+    if (castling.empty()) castling = "-";
+    fen += castling + " ";
+
+    if (pos.en_passant_square != -1)
+    {
+        char file_char = 'a' + (pos.en_passant_square % 8);
+        char rank_char = '1' + (pos.en_passant_square / 8);
+        fen += file_char;
+        fen += rank_char;
+    }
+    else
+    {
+        fen += "-";
+    }
+
+    fen += " " + std::to_string(pos.halfmove_clock) + " " + std::to_string(pos.fullmove_number);
+    return fen;
+}
