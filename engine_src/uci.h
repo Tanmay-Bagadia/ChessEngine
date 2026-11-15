@@ -2,4 +2,3 @@
 #include "position.h"
 
 void uci_loop();
-

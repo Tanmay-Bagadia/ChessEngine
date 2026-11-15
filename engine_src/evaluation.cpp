@@ -1,8 +1,12 @@
 #include "evaluation.h"
 #include "bitboard.h"
+#include "movegen.h"
 #include "nnue.h"
+#include <algorithm>
+#include <cstdlib>
 
-// PeSTO piece-square tables written visually with rank 8 at top (index 0..7) and rank 1 at bottom (index 56..63)
+// ===== PeSTO piece-square tables (rank 8 at top, rank 1 at bottom) =====
+
 static const int mg_pawn_table[64] = {
       0,   0,   0,   0,   0,   0,   0,   0,
      98, 134,  61,  95,  68, 126,  34, -11,
@@ -145,76 +149,258 @@ static const int* eg_tables[6] = {
     eg_rook_table, eg_queen_table, eg_king_table
 };
 
+// Material values (midgame / endgame)
 static const int mg_material[6] = { 82, 337, 365, 477, 1025, 0 };
 static const int eg_material[6] = { 94, 281, 297, 512,  936, 0 };
 
+// Phase weights for tapered eval
 static const int phase_weights[6] = { 0, 1, 1, 2, 4, 0 };
 static const int TOTAL_PHASE = 24;
 
-static int mg_table[2][6][64];
-static int eg_table[2][6][64];
+// Precomputed tables for fast access
+static int mg_table[2][6][64]; // mg_table[color][piece][sq]
+static int eg_table[2][6][64]; // eg_table[color][piece][sq]
 static bool tables_initialized = false;
 
-void init_evaluation()
-{
+// ===== Positional evaluation bonuses =====
+// (These are computed dynamically, not incremental)
+
+static constexpr int BISHOP_PAIR_MG = 30;
+static constexpr int BISHOP_PAIR_EG = 50;
+
+static constexpr int DOUBLED_PAWN_MG = -5;
+static constexpr int DOUBLED_PAWN_EG = -15;
+
+static constexpr int ISOLATED_PAWN_MG = -10;
+static constexpr int ISOLATED_PAWN_EG = -15;
+
+static constexpr int PASSED_PAWN_BONUS[8] = { 0, 5, 10, 20, 40, 70, 110, 0 };
+
+static constexpr int ROOK_OPEN_FILE_MG = 20;
+static constexpr int ROOK_SEMI_OPEN_FILE_MG = 10;
+
+static constexpr int KNIGHT_MOBILITY_MG = 4;
+static constexpr int BISHOP_MOBILITY_MG = 5;
+static constexpr int ROOK_MOBILITY_MG = 3;
+static constexpr int QUEEN_MOBILITY_MG = 2;
+
+static constexpr int KING_SHIELD_BONUS = 10;
+
+// ===== Public interface for incremental updates =====
+
+int get_mg_value(int color, int piece, int sq) {
+    int table_sq = (color == WHITE) ? (sq ^ 56) : sq;
+    return mg_material[piece] + mg_tables[piece][table_sq];
+}
+
+int get_eg_value(int color, int piece, int sq) {
+    int table_sq = (color == WHITE) ? (sq ^ 56) : sq;
+    return eg_material[piece] + eg_tables[piece][table_sq];
+}
+
+int get_phase_weight(int piece) {
+    return phase_weights[piece];
+}
+
+// ===== Initialization =====
+
+void init_evaluation() {
     if (tables_initialized) return;
 
-    for (int piece = 0; piece < 6; piece++)
-    {
-        for (int sq = 0; sq < 64; sq++)
-        {
-            // LERF (a1=0, h8=63) to PeSTO (a8=0, h1=63)
-            int white_table_sq = sq ^ 56;
-            int black_table_sq = sq;
+    for (int piece = 0; piece < 6; piece++) {
+        for (int sq = 0; sq < 64; sq++) {
+            int white_sq = sq ^ 56; // flip rank for white
+            int black_sq = sq;
 
-            mg_table[WHITE][piece][sq] = mg_material[piece] + mg_tables[piece][white_table_sq];
-            eg_table[WHITE][piece][sq] = eg_material[piece] + eg_tables[piece][white_table_sq];
+            mg_table[WHITE][piece][sq] = mg_material[piece] + mg_tables[piece][white_sq];
+            eg_table[WHITE][piece][sq] = eg_material[piece] + eg_tables[piece][white_sq];
 
-            mg_table[BLACK][piece][sq] = mg_material[piece] + mg_tables[piece][black_table_sq];
-            eg_table[BLACK][piece][sq] = eg_material[piece] + eg_tables[piece][black_table_sq];
+            mg_table[BLACK][piece][sq] = mg_material[piece] + mg_tables[piece][black_sq];
+            eg_table[BLACK][piece][sq] = eg_material[piece] + eg_tables[piece][black_sq];
         }
     }
-
     tables_initialized = true;
 }
 
-int evaluate(const Position &pos)
-{
+// ===== Positional evaluation terms =====
+
+static int evaluate_pawn_structure(const Position &pos, int eg_bonus[2]) {
+    int mg = 0;
+    eg_bonus[0] = eg_bonus[1] = 0;
+
+    for (int color = 0; color < 2; color++) {
+        U64 pawns = pos.pieces[color][PAWN];
+        U64 enemy_pawns = pos.pieces[color ^ 1][PAWN];
+
+        U64 bb = pawns;
+        while (bb) {
+            int sq = pop_lsb(bb);
+            int file = sq % 8;
+            int rank = sq / 8;
+
+            // Doubled pawns: another friendly pawn on same file
+            U64 file_pawns = pawns & FILE_MASKS[file];
+            if (popcount(file_pawns) > 1) {
+                mg += DOUBLED_PAWN_MG;
+                eg_bonus[color] += DOUBLED_PAWN_EG;
+            }
+
+            // Isolated pawns: no friendly pawns on adjacent files
+            U64 adj_pawns = pawns & ADJACENT_FILES[file];
+            if (adj_pawns == 0) {
+                mg += ISOLATED_PAWN_MG;
+                eg_bonus[color] += ISOLATED_PAWN_EG;
+            }
+
+            // Passed pawns: no enemy pawns on same or adjacent files ahead
+            int forward_rank = (color == WHITE) ? rank + 1 : rank - 1;
+            bool passed = true;
+            U64 adj_files = FILE_MASKS[file] | ADJACENT_FILES[file];
+            U64 ahead_mask = 0;
+            if (color == WHITE) {
+                for (int r = forward_rank; r <= 7; r++)
+                    ahead_mask |= RANK_MASKS[r];
+            } else {
+                for (int r = forward_rank; r >= 0; r--)
+                    ahead_mask |= RANK_MASKS[r];
+            }
+            if (enemy_pawns & adj_files & ahead_mask)
+                passed = false;
+
+            if (passed) {
+                int rel_rank = (color == WHITE) ? rank : (7 - rank);
+                eg_bonus[color] += PASSED_PAWN_BONUS[rel_rank];
+            }
+        }
+    }
+
+    return mg;
+}
+
+static int evaluate_mobility(const Position &pos) {
+    int mg = 0;
+
+    // Knight mobility
+    for (int color = 0; color < 2; color++) {
+        int sign = (color == WHITE) ? 1 : -1;
+        U64 knights = pos.pieces[color][KNIGHT];
+        while (knights) {
+            int sq = pop_lsb(knights);
+            U64 attacks = knight_attacks[sq] & ~pos.occupancy[color];
+            int mob = popcount(attacks);
+            mg += sign * (mob * KNIGHT_MOBILITY_MG - 4 * KNIGHT_MOBILITY_MG);
+        }
+
+        // Bishop mobility
+        U64 bishops = pos.pieces[color][BISHOP];
+        while (bishops) {
+            int sq = pop_lsb(bishops);
+            U64 attacks = get_bishop_attacks(sq, pos.occupancy[BOTH]) & ~pos.occupancy[color];
+            int mob = popcount(attacks);
+            mg += sign * (mob * BISHOP_MOBILITY_MG - 7 * BISHOP_MOBILITY_MG);
+        }
+
+        // Rook mobility
+        U64 rooks = pos.pieces[color][ROOK];
+        while (rooks) {
+            int sq = pop_lsb(rooks);
+            U64 attacks = get_rook_attacks(sq, pos.occupancy[BOTH]) & ~pos.occupancy[color];
+            int mob = popcount(attacks);
+            mg += sign * (mob * ROOK_MOBILITY_MG - 7 * ROOK_MOBILITY_MG);
+        }
+
+        // Queen mobility (lighter weight)
+        U64 queens = pos.pieces[color][QUEEN];
+        while (queens) {
+            int sq = pop_lsb(queens);
+            U64 attacks = get_queen_attacks(sq, pos.occupancy[BOTH]) & ~pos.occupancy[color];
+            int mob = popcount(attacks);
+            mg += sign * (mob * QUEEN_MOBILITY_MG - 14 * QUEEN_MOBILITY_MG);
+        }
+    }
+
+    return mg;
+}
+
+static int evaluate_piece_bonuses(const Position &pos) {
+    int mg = 0, eg = 0;
+
+    for (int color = 0; color < 2; color++) {
+        int sign = (color == WHITE) ? 1 : -1;
+
+        // Bishop pair bonus
+        if (popcount(pos.pieces[color][BISHOP]) >= 2) {
+            mg += sign * BISHOP_PAIR_MG;
+            eg += sign * BISHOP_PAIR_EG;
+        }
+
+        // Rook on open/semi-open file
+        U64 rooks = pos.pieces[color][ROOK];
+        while (rooks) {
+            int sq = pop_lsb(rooks);
+            int file = sq % 8;
+            U64 file_mask = FILE_MASKS[file];
+            bool friendly_pawns_on_file = (pos.pieces[color][PAWN] & file_mask) != 0;
+            bool enemy_pawns_on_file = (pos.pieces[color ^ 1][PAWN] & file_mask) != 0;
+
+            if (!friendly_pawns_on_file && !enemy_pawns_on_file)
+                mg += sign * ROOK_OPEN_FILE_MG;
+            else if (!friendly_pawns_on_file)
+                mg += sign * ROOK_SEMI_OPEN_FILE_MG;
+        }
+
+        // King safety: pawn shield
+        int king_sq = lsb(pos.pieces[color][KING]);
+        int king_file = king_sq % 8;
+        int king_rank = king_sq / 8;
+        U64 shield_mask = 0;
+        for (int f = std::max(0, king_file - 1); f <= std::min(7, king_file + 1); f++) {
+            if (color == WHITE) {
+                if (king_rank < 7) shield_mask |= (1ULL << ((king_rank + 1) * 8 + f));
+                if (king_rank < 6) shield_mask |= (1ULL << ((king_rank + 2) * 8 + f));
+            } else {
+                if (king_rank > 0) shield_mask |= (1ULL << ((king_rank - 1) * 8 + f));
+                if (king_rank > 1) shield_mask |= (1ULL << ((king_rank - 2) * 8 + f));
+            }
+        }
+        int shield_count = popcount(pos.pieces[color][PAWN] & shield_mask);
+        mg += sign * shield_count * KING_SHIELD_BONUS;
+    }
+
+    return mg + eg; // Simplified: both go into mg for now
+}
+
+// ===== Main evaluation =====
+
+int evaluate(const Position &pos) {
+    // Try NNUE first
     if (get_use_nnue() && is_nnue_loaded())
         return evaluate_nnue_position(pos);
 
     if (!tables_initialized)
         init_evaluation();
 
-    int mg_score[2] = {0, 0};
-    int eg_score[2] = {0, 0};
-    int game_phase = 0;
+    // Use incremental material + PST scores
+    int mg_white = pos.mg_score[WHITE];
+    int eg_white = pos.eg_score[WHITE];
+    int mg_black = pos.mg_score[BLACK];
+    int eg_black = pos.eg_score[BLACK];
+    int phase = std::min(pos.game_phase, TOTAL_PHASE);
 
-    for (int color = 0; color < 2; color++)
-    {
-        for (int piece = 0; piece < 6; piece++)
-        {
-            U64 bb = pos.pieces[color][piece];
-            while (bb)
-            {
-                int sq = pop_lsb(bb);
-                mg_score[color] += mg_table[color][piece][sq];
-                eg_score[color] += eg_table[color][piece][sq];
-                game_phase += phase_weights[piece];
-            }
-        }
-    }
+    // Dynamic positional terms (not incremental)
+    int eg_bonus[2] = {0, 0};
+    int pawn_mg = evaluate_pawn_structure(pos, eg_bonus);
+    int mobility_mg = evaluate_mobility(pos);
+    int piece_mg = evaluate_piece_bonuses(pos);
 
-    if (game_phase > TOTAL_PHASE)
-        game_phase = TOTAL_PHASE;
+    int mg = (mg_white - mg_black) + pawn_mg + mobility_mg + piece_mg;
+    int eg = (eg_white - eg_black) + (eg_bonus[WHITE] - eg_bonus[BLACK]);
 
-    int mg_phase = game_phase;
-    int eg_phase = TOTAL_PHASE - mg_phase;
-
-    int mg = mg_score[WHITE] - mg_score[BLACK];
-    int eg = eg_score[WHITE] - eg_score[BLACK];
-
+    // Tapered evaluation
+    int mg_phase = phase;
+    int eg_phase = TOTAL_PHASE - phase;
     int score = (mg * mg_phase + eg * eg_phase) / TOTAL_PHASE;
 
+    // Return score from side-to-move perspective
     return (pos.side_to_move == WHITE) ? score : -score;
 }

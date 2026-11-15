@@ -1,4 +1,5 @@
-*.md
+!README.md
+!IMPLEMENTATION_SUMMARY.md
 !implementation_plan.md
 engine_src/engine
 *.o

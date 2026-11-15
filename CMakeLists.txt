@@ -13,9 +13,10 @@ endif()
 # Compiler flags
 if(MSVC)
     set(CMAKE_CXX_FLAGS_RELEASE "/O2 /Oi /Ot /DNDEBUG")
+    set(CMAKE_CXX_FLAGS_DEBUG "/Zi /Od /Wall")
 else()
-    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -DNDEBUG")
-    set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -Wall -Wextra")
+    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -DNDEBUG -flto")
+    set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -Wall -Wextra -Wpedantic -Wshadow -Wconversion")
 endif()
 
 # On macOS with Clang, ensure libc++ headers from SDK take priority over /usr/local/include
@@ -41,5 +42,9 @@ find_package(Threads REQUIRED)
 
 add_executable(engine ${SOURCES})
 target_link_libraries(engine PRIVATE Threads::Threads)
-
 target_include_directories(engine PRIVATE engine_src)
+
+# Enable LTO in Release mode
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    set_property(TARGET engine PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+endif()

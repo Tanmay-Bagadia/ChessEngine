@@ -3,8 +3,7 @@
 
 using Move = uint16_t;
 
-struct MoveList
-{
+struct MoveList {
     Move moves[256];
     int count = 0;
     inline void push_back(Move m) { moves[count++] = m; }
@@ -27,12 +26,11 @@ extern U64 rook_attacks[64][4096];
 extern U64 bishop_attacks[64][512];
 extern U64 pawn_attacks[2][64];
 
-inline Move encode_move(int from, int to, int flag)
-{
+inline Move encode_move(int from, int to, int flag) {
     return (flag << 12) | (to << 6) | from;
 }
-enum MoveFlag
-{
+
+enum MoveFlag {
     QUIET = 0,
     DOUBLE_PUSH = 1,
     K_CASTLE = 2,
@@ -50,41 +48,44 @@ enum MoveFlag
     Q_PROMO_CAP = 15
 };
 
-inline int get_from(Move m)
-{
-    return (m & 0x3F);
-}
-inline int get_to(Move m)
-{
-    return ((m >> 6) & 0x3F);
-}
-inline int get_flag(Move m)
-{
-    return ((m >> 12) & 0xF);
+inline int get_from(Move m) { return (m & 0x3F); }
+inline int get_to(Move m) { return ((m >> 6) & 0x3F); }
+inline int get_flag(Move m) { return ((m >> 12) & 0xF); }
+
+inline bool is_capture(Move m) {
+    int f = get_flag(m);
+    return (f & 4) || f >= 8; // captures or promotions (promotions gain material)
 }
 
-inline U64 get_bishop_attacks(int square, U64 occupancy)
-{
+inline bool is_quiet(Move m) {
+    int f = get_flag(m);
+    return !(f & 4) && f < 8;
+}
+
+inline U64 get_bishop_attacks(int square, U64 occupancy) {
     occupancy &= bishop_masks[square];
     occupancy *= bishop_magic[square];
     occupancy >>= 64 - __builtin_popcountll(bishop_masks[square]);
     return bishop_attacks[square][occupancy];
 }
 
-inline U64 get_rook_attacks(int square, U64 occupancy)
-{
+inline U64 get_rook_attacks(int square, U64 occupancy) {
     occupancy &= rook_masks[square];
     occupancy *= rook_magic[square];
     occupancy >>= 64 - __builtin_popcountll(rook_masks[square]);
     return rook_attacks[square][occupancy];
 }
 
-inline U64 get_queen_attacks(int square, U64 occupancy)
-{
+inline U64 get_queen_attacks(int square, U64 occupancy) {
     return get_bishop_attacks(square, occupancy) | get_rook_attacks(square, occupancy);
 }
+
 void init_leapers();
 void init_sliders();
 
 void generate_moves(Position &pos, MoveList &move_list);
+void generate_captures(Position &pos, MoveList &move_list);
 bool is_square_attacked(int square, int attacking_side, Position &pos);
+
+// Static Exchange Evaluation
+int see(Position &pos, Move move);

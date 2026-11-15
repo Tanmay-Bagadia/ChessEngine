@@ -493,7 +493,7 @@ const server = http.createServer(async (req, res) => {
 
 startEngine();
 
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
     console.log(`===============================================`);
     console.log(`♟️  TanmayChess Server Running! (100% C++ Engine)`);
     console.log(`🌐  Open in browser: http://localhost:${PORT}`);

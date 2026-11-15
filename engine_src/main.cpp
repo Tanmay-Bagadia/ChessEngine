@@ -6,8 +6,7 @@
 #include "search.h"
 #include "uci.h"
 
-int main()
-{
+int main() {
     init_leapers();
     init_zobrist();
     init_sliders();

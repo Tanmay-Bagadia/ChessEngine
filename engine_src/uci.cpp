@@ -4,6 +4,7 @@
 #include "perft.h"
 #include "zobrist.h"
 #include "nnue.h"
+#include "evaluation.h"
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,96 +15,83 @@
 
 static Position pos;
 static SearchInfo info;
-static U64 game_history[2048];
+static U64 game_history[4096];
 static int game_history_count = 0;
 static std::thread search_thread;
 
-static void stop_search()
-{
+static void stop_search() {
     info.stopped = true;
     if (search_thread.joinable())
         search_thread.join();
 }
 
-static Move parse_move(Position &pos, const std::string &str)
-{
-    if (str.length() < 4)
-        return 0;
-
+static Move parse_move(Position &pos, const std::string &str) {
+    if (str.length() < 4) return 0;
     MoveList ml;
     generate_moves(pos, ml);
-
     int from = (str[0] - 'a') + (str[1] - '1') * 8;
     int to = (str[2] - 'a') + (str[3] - '1') * 8;
 
-    for (int i = 0; i < ml.size(); i++)
-    {
-        if (get_from(ml[i]) == from && get_to(ml[i]) == to)
-        {
+    for (int i = 0; i < ml.size(); i++) {
+        if (get_from(ml[i]) == from && get_to(ml[i]) == to) {
             int flag = get_flag(ml[i]);
-            if (flag >= 8)
-            {
+            if (flag >= 8) {
                 char promo = (str.length() > 4) ? (char)std::tolower(str[4]) : 'q';
                 int promo_piece = (flag & 3);
                 if ((promo == 'n' && promo_piece == 0) ||
                     (promo == 'b' && promo_piece == 1) ||
                     (promo == 'r' && promo_piece == 2) ||
-                    (promo == 'q' && promo_piece == 3))
-                {
-                    Position copy = pos;
-                    if (make_move(copy, ml[i]))
+                    (promo == 'q' && promo_piece == 3)) {
+                    UndoInfo undo;
+                    if (make_move(pos, ml[i], undo)) {
+                        unmake_move(pos, ml[i], undo);
                         return ml[i];
+                    }
                 }
                 continue;
             }
-
-            Position copy = pos;
-            if (make_move(copy, ml[i]))
+            UndoInfo undo;
+            if (make_move(pos, ml[i], undo)) {
+                unmake_move(pos, ml[i], undo);
                 return ml[i];
+            }
         }
     }
     return 0;
 }
 
-static void parse_position(std::istringstream &is)
-{
+static void parse_position(std::istringstream &is) {
     std::string token;
     if (!(is >> token)) return;
-
     game_history_count = 0;
 
-    if (token == "startpos")
-    {
+    if (token == "startpos") {
         load_fen(pos, START_FEN);
-    }
-    else if (token == "fen")
-    {
+    } else if (token == "fen") {
         std::string fen;
         while (is >> token && token != "moves")
             fen += token + " ";
         load_fen(pos, fen.c_str());
     }
 
-    if (game_history_count < 2048)
+    if (game_history_count < 4096)
         game_history[game_history_count++] = pos.hash;
 
-    while (is >> token)
-    {
+    while (is >> token) {
         if (token == "moves") continue;
         Move m = parse_move(pos, token);
-        if (m != 0)
-        {
-            make_move(pos, m);
-            if (game_history_count < 2048)
-                game_history[game_history_count++] = pos.hash;
+        if (m != 0) {
+            UndoInfo undo;
+            if (make_move(pos, m, undo)) {
+                if (game_history_count < 4096)
+                    game_history[game_history_count++] = pos.hash;
+            }
         }
     }
 }
 
-static void parse_go(std::istringstream &is)
-{
+static void parse_go(std::istringstream &is) {
     stop_search();
-
     std::string token;
     int depth = MAX_PLY;
     int64_t wtime = 0, btime = 0, winc = 0, binc = 0;
@@ -112,8 +100,7 @@ static void parse_go(std::istringstream &is)
     bool infinite = false;
     int perft_depth = 0;
 
-    while (is >> token)
-    {
+    while (is >> token) {
         if (token == "depth") is >> depth;
         else if (token == "wtime") is >> wtime;
         else if (token == "btime") is >> btime;
@@ -125,8 +112,7 @@ static void parse_go(std::istringstream &is)
         else if (token == "perft") is >> perft_depth;
     }
 
-    if (perft_depth > 0)
-    {
+    if (perft_depth > 0) {
         perft_divide(pos, perft_depth);
         return;
     }
@@ -134,28 +120,21 @@ static void parse_go(std::istringstream &is)
     info.depth = depth;
     info.time_limit_ms = 0;
 
-    if (movetime > 0)
-    {
+    if (movetime > 0) {
         info.time_limit_ms = movetime;
-    }
-    else if (!infinite)
-    {
+    } else if (!infinite) {
         int64_t time_left = (pos.side_to_move == WHITE) ? wtime : btime;
         int64_t inc = (pos.side_to_move == WHITE) ? winc : binc;
 
-        if (time_left > 0)
-        {
+        if (time_left > 0) {
             int divisor = (movestogo > 0) ? (movestogo + 2) : 30;
             info.time_limit_ms = time_left / divisor + inc * 4 / 5;
             if (info.time_limit_ms > time_left - 50)
                 info.time_limit_ms = time_left - 50;
             if (info.time_limit_ms < 1)
                 info.time_limit_ms = 1;
-        }
-        else if (depth == MAX_PLY)
-        {
-            // Default depth if no time or depth specified
-            info.depth = 8;
+        } else if (depth == MAX_PLY) {
+            info.depth = 10;
         }
     }
 
@@ -169,19 +148,16 @@ static void parse_go(std::istringstream &is)
     });
 }
 
-void uci_loop()
-{
+void uci_loop() {
     std::string line, token;
     load_fen(pos, START_FEN);
 
-    while (std::getline(std::cin, line))
-    {
+    while (std::getline(std::cin, line)) {
         std::istringstream is(line);
         if (!(is >> token)) continue;
 
-        if (token == "uci")
-        {
-            std::cout << "id name TanmayChess 1.0" << std::endl;
+        if (token == "uci") {
+            std::cout << "id name TanmayChess 2.0" << std::endl;
             std::cout << "id author Tanmay" << std::endl;
             std::cout << "option name Hash type spin default 16 min 1 max 1024" << std::endl;
             std::cout << "option name MultiPV type spin default 1 min 1 max 5" << std::endl;
@@ -189,127 +165,140 @@ void uci_loop()
             std::cout << "option name EvalFile type string default nnue.bin" << std::endl;
             std::cout << "uciok" << std::endl;
         }
-        else if (token == "isready")
-        {
+        else if (token == "isready") {
             std::cout << "readyok" << std::endl;
         }
-        else if (token == "setoption")
-        {
+        else if (token == "setoption") {
             std::string name_tok, opt_name, val_tok;
-            if (is >> name_tok && name_tok == "name" && is >> opt_name)
-            {
-                if (opt_name == "Hash" && is >> val_tok && val_tok == "value")
-                {
+            if (is >> name_tok && name_tok == "name" && is >> opt_name) {
+                if (opt_name == "Hash" && is >> val_tok && val_tok == "value") {
                     int val = 16;
-                    if (is >> val)
-                    {
-                        stop_search();
-                        init_tt(val);
-                    }
+                    if (is >> val) { stop_search(); init_tt(val); }
                 }
-                else if (opt_name == "MultiPV" && is >> val_tok && val_tok == "value")
-                {
+                else if (opt_name == "MultiPV" && is >> val_tok && val_tok == "value") {
                     int val = 1;
-                    if (is >> val)
-                    {
-                        stop_search();
-                        info.multipv = std::clamp(val, 1, 5);
-                    }
+                    if (is >> val) { stop_search(); info.multipv = std::clamp(val, 1, 5); }
                 }
-                else if (opt_name == "UseNNUE" && is >> val_tok && val_tok == "value")
-                {
+                else if (opt_name == "UseNNUE" && is >> val_tok && val_tok == "value") {
                     std::string val;
-                    if (is >> val)
-                    {
-                        stop_search();
-                        set_use_nnue(val == "true");
-                    }
+                    if (is >> val) { stop_search(); set_use_nnue(val == "true"); }
                 }
-                else if (opt_name == "EvalFile" && is >> val_tok && val_tok == "value")
-                {
+                else if (opt_name == "EvalFile" && is >> val_tok && val_tok == "value") {
                     std::string filename;
-                    if (is >> filename)
-                    {
-                        stop_search();
-                        load_nnue_file(filename.c_str());
-                    }
+                    if (is >> filename) { stop_search(); load_nnue_file(filename.c_str()); }
                 }
             }
         }
-        else if (token == "ucinewgame")
-        {
+        else if (token == "ucinewgame") {
             stop_search();
             clear_tt();
             info.clear();
             game_history_count = 0;
             load_fen(pos, START_FEN);
         }
-        else if (token == "position")
-        {
+        else if (token == "position") {
             stop_search();
             parse_position(is);
         }
-        else if (token == "go")
-        {
+        else if (token == "go") {
             parse_go(is);
         }
-        else if (token == "stop")
-        {
+        else if (token == "stop") {
             stop_search();
         }
-        else if (token == "quit")
-        {
+        else if (token == "quit") {
             stop_search();
             break;
         }
-        else if (token == "d" || token == "display")
-        {
+        else if (token == "d" || token == "display") {
             stop_search();
             print_board(pos);
         }
-        else if (token == "fen")
-        {
+        else if (token == "fen") {
             stop_search();
             std::cout << "fen " << export_fen(pos) << std::endl;
         }
-        else if (token == "legalmoves")
-        {
+        else if (token == "eval") {
+            stop_search();
+            int score = evaluate(pos);
+            std::cout << "Evaluation: " << score << " cp (from " << (pos.side_to_move == WHITE ? "white" : "black") << "'s perspective)" << std::endl;
+        }
+        else if (token == "bench") {
+            stop_search();
+            // Run a benchmark: search several positions to fixed depth
+            const char *bench_fens[] = {
+                "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+                "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+                "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
+                "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
+                "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
+                "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10",
+                "3r2k1/pp3ppp/2n5/8/3P4/2P5/P1Q2PPP/R4RK1 w - - 0 1",
+                "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4",
+            };
+            int bench_depth = 8;
+            if (is >> token) bench_depth = std::stoi(token);
+
+            uint64_t total_nodes = 0;
+            auto start = get_time_ms();
+
+            for (int i = 0; i < 8; i++) {
+                load_fen(pos, bench_fens[i]);
+                clear_tt();
+                info.depth = bench_depth;
+                info.time_limit_ms = 0;
+                info.game_ply = 0;
+                info.rep_count = 0;
+                search_position(pos, info);
+                total_nodes += info.nodes;
+            }
+
+            auto elapsed = get_time_ms() - start;
+            if (elapsed == 0) elapsed = 1;
+            std::cout << "\n=============================\n";
+            std::cout << "Bench complete: " << total_nodes << " nodes, "
+                      << elapsed << " ms, " << (total_nodes * 1000 / elapsed) << " nps\n";
+        }
+        else if (token == "perftsuite") {
+            stop_search();
+            int max_d = 4;
+            if (is >> token) max_d = std::stoi(token);
+            run_perft_suite(max_d);
+        }
+        else if (token == "legalmoves") {
             stop_search();
             MoveList ml;
             generate_moves(pos, ml);
             std::cout << "legalmoves";
-            for (int i = 0; i < ml.size(); i++)
-            {
-                Position copy = pos;
-                if (make_move(copy, ml[i]))
-                {
+            for (int i = 0; i < ml.size(); i++) {
+                UndoInfo undo;
+                if (make_move(pos, ml[i], undo)) {
                     std::cout << " " << move_to_uci(ml[i]);
+                    unmake_move(pos, ml[i], undo);
                 }
             }
             std::cout << std::endl;
         }
-        else if (token == "state")
-        {
+        else if (token == "state") {
             stop_search();
             int side = pos.side_to_move;
             int enemy = side ^ 1;
-            int king_sq = (pos.pieces[side][KING] != 0ULL) ? __builtin_ctzll(pos.pieces[side][KING]) : -1;
+            int king_sq = (pos.pieces[side][KING] != 0ULL) ? lsb(pos.pieces[side][KING]) : -1;
             bool in_check = (king_sq != -1) && is_square_attacked(king_sq, enemy, pos);
 
             MoveList ml;
             generate_moves(pos, ml);
-            std::vector<std::string> legal_moves;
-            for (int i = 0; i < ml.size(); i++)
-            {
-                Position copy = pos;
-                if (make_move(copy, ml[i]))
-                {
-                    legal_moves.push_back(move_to_uci(ml[i]));
+            std::vector<std::string> legal;
+            for (int i = 0; i < ml.size(); i++) {
+                UndoInfo undo;
+                if (make_move(pos, ml[i], undo)) {
+                    legal.push_back(move_to_uci(ml[i]));
+                    unmake_move(pos, ml[i], undo);
                 }
             }
 
-            bool checkmate = (legal_moves.empty() && in_check);
-            bool stalemate = (legal_moves.empty() && !in_check);
+            bool checkmate = (legal.empty() && in_check);
+            bool stalemate = (legal.empty() && !in_check);
             std::string fen = export_fen(pos);
 
             std::cout << "state fen " << fen
@@ -320,13 +309,9 @@ void uci_loop()
                       << " halfmove " << pos.halfmove_clock
                       << " fullmove " << pos.fullmove_number
                       << " legalmoves";
-            for (const auto &m : legal_moves)
-            {
-                std::cout << " " << m;
-            }
+            for (const auto &m : legal) std::cout << " " << m;
             std::cout << std::endl;
         }
     }
-
     stop_search();
 }
