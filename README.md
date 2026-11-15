@@ -17,15 +17,12 @@ A high-performance chess engine written in C++17 with a web-based GUI. Features 
 - **Iterative Deepening** — Progressive depth increase with time management
 - **Aspiration Windows** — Narrow search windows around expected score
 - **Transposition Table** — Hash table with age-based replacement scheme
-- **Quiescence Search** — Captures-only search at leaf nodes with SEE pruning
+- **Quiescence Search** — Captures-only search at leaf nodes with stand-pat evaluation
 - **Null Move Pruning** — Adaptive R = 3 + depth/6
 - **Late Move Reduction (LMR)** — Deeper reductions for late quiet moves
-- **Late Move Pruning (LMP)** — Skip late quiet moves at shallow depth
-- **Futility Pruning** — Prune quiet moves when eval + margin < alpha
-- **Razoring** — Drop to qsearch when eval far below alpha
 - **Mate Distance Pruning** — Tighten alpha/beta near mate scores
 - **Check Extensions** — Extend search when in check
-- **Static Exchange Evaluation (SEE)** — Prune losing captures in quiescence
+- **Static Exchange Evaluation (SEE)** — Fast piece exchange evaluation
 
 ### Move Ordering
 - **Hash Move** — TT best move searched first
