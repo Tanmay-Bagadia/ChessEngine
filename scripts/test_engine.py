@@ -1,8 +1,10 @@
 import subprocess
 import time
 import sys
+import os
 
-ENGINE_PATH = "/Users/tanmay1301/projects/ChessEngine/build/engine"
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from engine_path import ENGINE_PATH
 
 class ChessEngineProcess:
     def __init__(self, path=ENGINE_PATH):
