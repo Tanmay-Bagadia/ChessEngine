@@ -3,151 +3,345 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TanmayChess | Modern Analysis & Play GUI</title>
+    <title>Chess Engine — Nen Persona & Modern Analysis</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         :root {
+            /* surfaces */
             --bg-primary: #161512;
             --bg-secondary: #262421;
             --bg-tertiary: #363431;
+            --bg-raised: #2C2A26;
+            --border: #403D39;
+            --border-soft: rgba(255, 255, 255, 0.08);
+
+            /* text */
+            --text-main: #BABABA;
+            --text-bright: #FFFFFF;
+            --text-muted: #8B8781;
+            --text-code: #EDEBE7;
+
+            /* accents */
             --accent: #629924;
-            --accent-hover: #75b32e;
-            --accent-blue: #3692e7;
-            --text-main: #bababa;
-            --text-bright: #ffffff;
-            --board-light: #f0d9b5;
-            --board-dark: #b58863;
-            --highlight-select: rgba(20, 130, 230, 0.6);
-            --highlight-last: rgba(155, 199, 0, 0.45);
-            --highlight-check: rgba(235, 40, 40, 0.7);
-            --border-color: #403d39;
+            --accent-hover: #75B32E;
+            --accent-text: #8EDC75;
+            --accent-wash: #2B3524;
+            --danger: #E5484D;
+            --danger-text: #F0A8A8;
+            --danger-wash: #3A2A2A;
+
+            /* board colors */
+            --board-light: #F0D9B5;
+            --board-dark: #B58863;
+            --hl-select: #1478D2;
+            --hl-last: rgba(155, 199, 0, 0.45);
+            --hl-check: #EB2828;
+
+            /* nen affinities */
+            --nen-enhancement: #37D67A;
+            --nen-transmutation: #9B5CFF;
+            --nen-conjuration: #E5484D;
+            --nen-specialization: #3B82F6;
+            --nen-manipulation: #9AA3AD;
+            --nen-emission: #F5C451;
+
+            /* geometry: 560px board */
+            --board-size: 560px;
+            --evalbar-width: 36px;
+            --r-sm: 4px;
+            --r-md: 6px;
+            --r-lg: 10px;
+            --r-pill: 999px;
+
+            /* fonts */
+            --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+            /* motion */
+            --ease: cubic-bezier(0.4, 0, 0.2, 1);
+            --ease-bar: cubic-bezier(0.4, 0, 0.2, 1);
+            --t-fast: 120ms;
+            --t-bar: 250ms;
+            --t-radar: 300ms;
         }
 
-        * {
+        :focus-visible {
+            outline: 2px solid #1478D2;
+            outline-offset: 2px;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }
+        }
+
+        *, *::before, *::after {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }
 
         body {
             background-color: var(--bg-primary);
             color: var(--text-main);
+            font-family: var(--font-ui);
+            -webkit-font-smoothing: antialiased;
+            min-height: 100vh;
             display: flex;
             flex-direction: column;
-            min-height: 100vh;
+            user-select: none;
+            overflow-x: hidden;
         }
 
-        header {
+        /* Top Header */
+        .app-bar {
+            height: 56px;
             background-color: var(--bg-secondary);
-            border-bottom: 1px solid var(--border-color);
-            padding: 12px 24px;
+            border-bottom: 1px solid var(--border);
             display: flex;
             align-items: center;
             justify-content: space-between;
+            padding: 0 24px;
+            position: relative;
+            z-index: 20;
         }
 
-        .logo {
+        .app-bar-left {
             display: flex;
             align-items: center;
             gap: 12px;
-            font-size: 1.25rem;
+        }
+
+        .knight-tile {
+            width: 32px;
+            height: 32px;
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: var(--r-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-bright);
+        }
+
+        .wordmark {
+            font-size: 16px;
             font-weight: 700;
             color: var(--text-bright);
+            letter-spacing: -0.01em;
         }
 
-        .badge {
-            background: #2f6627;
-            color: #8edc75;
-            font-size: 0.75rem;
-            padding: 3px 8px;
-            border-radius: 12px;
+        .badge-nen {
+            background-color: var(--accent-wash);
+            color: var(--accent-text);
+            font-size: 11px;
             font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            padding: 3px 10px;
+            border-radius: var(--r-pill);
+            border: 1px solid rgba(142, 220, 117, 0.2);
         }
 
-        .top-stats {
+        .stat-chips {
             display: flex;
-            gap: 20px;
-            font-size: 0.85rem;
+            align-items: center;
+            background-color: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: var(--r-md);
+            overflow: hidden;
         }
 
-        .stat-item span {
+        .stat-chip {
+            padding: 6px 14px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            position: relative;
+        }
+
+        .stat-chip:not(:last-child)::after {
+            content: "";
+            position: absolute;
+            right: 0;
+            top: 6px;
+            bottom: 6px;
+            width: 1px;
+            background-color: var(--border);
+        }
+
+        .stat-label {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .stat-value {
+            font-size: 13px;
+            font-weight: 600;
             color: var(--text-bright);
-            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+            margin-top: 2px;
         }
 
-        main {
-            display: flex;
-            flex: 1;
-            padding: 24px;
-            gap: 24px;
-            max-width: 1400px;
+        .eq-bars {
+            display: inline-flex;
+            align-items: flex-end;
+            gap: 2px;
+            height: 9px;
+        }
+
+        .eq-bar {
+            width: 2px;
+            background-color: var(--accent-text);
+            border-radius: 1px;
+            animation: equalize 0.8s ease-in-out infinite alternate;
+        }
+        .eq-bar:nth-child(1) { height: 4px; animation-delay: 0.1s; }
+        .eq-bar:nth-child(2) { height: 9px; animation-delay: 0.3s; }
+        .eq-bar:nth-child(3) { height: 6px; animation-delay: 0.2s; }
+
+        @keyframes equalize {
+            0% { height: 3px; }
+            100% { height: 9px; }
+        }
+
+        /* Main Workspace Container */
+        .app-body {
+            max-width: 1440px;
             margin: 0 auto;
+            padding: 24px;
+            display: grid;
+            grid-template-columns: calc(var(--board-size) + var(--evalbar-width) + 12px) minmax(420px, 1fr);
+            column-gap: 24px;
+            align-items: start;
+            flex: 1;
             width: 100%;
         }
 
-        /* Board Section */
-        .board-container {
-            display: flex;
-            align-items: flex-start;
-            gap: 16px;
-        }
-
-        .eval-bar-wrapper {
-            width: 30px;
-            height: 560px;
-            background: #222;
-            border-radius: 4px;
-            overflow: hidden;
+        /* Left Column: Board + Lichess Eval Bar */
+        .left-column {
             display: flex;
             flex-direction: column;
+            gap: 12px;
+        }
+
+        .board-container-row {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+        }
+
+        /* Authentic Lichess Evaluation Bar */
+        .eval-bar {
+            width: var(--evalbar-width);
+            height: var(--board-size);
+            background-color: #262421;
+            border-radius: var(--r-md);
+            border: 1px solid var(--border);
+            overflow: hidden;
             position: relative;
-            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.45);
+        }
+
+        .eval-bar.flipped {
+            flex-direction: column-reverse;
         }
 
         .eval-bar-black {
+            background-color: #262421;
             width: 100%;
-            background: #111;
-            transition: height 0.3s ease;
-        }
-
-        .eval-bar-white {
-            width: 100%;
-            background: #eee;
-            flex: 1;
-        }
-
-        .eval-text {
-            position: absolute;
-            bottom: 6px;
-            left: 0;
-            right: 0;
-            text-align: center;
-            font-size: 0.72rem;
-            font-weight: 800;
-            color: #111;
-            text-shadow: 0 0 2px rgba(255,255,255,0.8);
-            pointer-events: none;
-        }
-
-        .board-wrapper {
+            height: 50%;
+            transition: height var(--t-bar) var(--ease-bar);
             position: relative;
         }
 
-        .board {
-            width: 560px;
-            height: 560px;
+        .eval-bar-white {
+            background-color: #FFFFFF;
+            width: 100%;
+            flex: 1;
+            position: relative;
+            transition: height var(--t-bar) var(--ease-bar);
+        }
+
+        .eval-score-badge {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            height: 24px;
+            padding: 0 6px;
+            border-radius: var(--r-pill);
+            font-size: 11px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 5;
+            transition: all var(--t-bar) var(--ease-bar);
+            box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+            white-space: nowrap;
+        }
+
+        .eval-score-badge.white-win {
+            bottom: 8px;
+            background-color: rgba(255, 255, 255, 0.95);
+            color: #161512;
+        }
+
+        .eval-score-badge.black-win {
+            top: 8px;
+            background-color: rgba(38, 36, 33, 0.95);
+            color: #FFFFFF;
+        }
+
+        .eval-bar.flipped .eval-score-badge.white-win {
+            top: 8px;
+            bottom: auto;
+        }
+
+        .eval-bar.flipped .eval-score-badge.black-win {
+            bottom: 8px;
+            top: auto;
+        }
+
+        /* Chess Board: Enlarged 640px */
+        .board-wrapper {
+            position: relative;
+            width: var(--board-size);
+            height: var(--board-size);
+        }
+
+        .board-grid {
+            width: var(--board-size);
+            height: var(--board-size);
             display: grid;
             grid-template-columns: repeat(8, 1fr);
             grid-template-rows: repeat(8, 1fr);
-            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
-            border-radius: 4px;
+            border-radius: var(--r-md);
             overflow: hidden;
-            user-select: none;
+            box-shadow: 0 18px 40px -12px rgba(0, 0, 0, 0.65);
+            position: relative;
+            background-color: var(--board-dark);
         }
 
-        .square {
-            width: 70px;
-            height: 70px;
+        .sq {
+            width: 100%;
+            height: 100%;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -155,409 +349,977 @@
             cursor: pointer;
         }
 
-        .square.light { background-color: var(--board-light); }
-        .square.dark { background-color: var(--board-dark); }
-        .square.selected { background-color: var(--highlight-select) !important; }
-        .square.last-move { background-color: var(--highlight-last) !important; }
-        .square.in-check { background-color: var(--highlight-check) !important; }
+        .sq.light { background-color: var(--board-light); }
+        .sq.dark { background-color: var(--board-dark); }
 
-        /* Legal target indicator: dot for quiet moves */
-        .square.legal-target::after {
-            content: '';
-            width: 20px;
-            height: 20px;
-            background: rgba(0, 0, 0, 0.25);
-            border-radius: 50%;
-            pointer-events: none;
-            position: absolute;
-            z-index: 10;
+        .sq.hl-last {
+            background-color: var(--hl-last) !important;
         }
 
-        /* Legal capture indicator: ring on capture squares */
-        .square.legal-capture::after {
-            content: '';
-            width: 58px;
-            height: 58px;
+        .sq.hl-select {
+            background-color: var(--hl-select) !important;
+        }
+
+        .sq.hl-check {
+            background: radial-gradient(circle, rgba(235, 40, 40, 0.85) 0%, transparent 75%) !important;
+        }
+
+        .sq-hint-dot::before {
+            content: "";
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background-color: rgba(0, 0, 0, 0.28);
+            z-index: 3;
+            pointer-events: none;
+            position: absolute;
+        }
+
+        .sq-hint-ring::before {
+            content: "";
+            width: calc(100% - 10px);
+            height: calc(100% - 10px);
+            border-radius: 50%;
             border: 6px solid rgba(0, 0, 0, 0.28);
-            border-radius: 50%;
+            z-index: 3;
             pointer-events: none;
             position: absolute;
-            z-index: 10;
         }
 
-        .piece {
-            width: 62px;
-            height: 62px;
-            background-size: contain;
-            background-repeat: no-repeat;
-            background-position: center;
-            z-index: 5;
+        .piece-img {
+            width: 90%;
+            height: 90%;
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            cursor: grab;
+            user-select: none;
+            z-index: 2;
             transition: transform 0.1s ease;
         }
 
-        .piece:hover {
-            transform: scale(1.04);
+        .piece-img:active {
+            cursor: grabbing;
         }
 
-        /* Promotion Modal */
-        .promo-modal {
-            display: none;
+        .coord {
             position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: var(--bg-secondary);
-            border: 2px solid var(--accent);
-            border-radius: 8px;
-            padding: 16px;
-            z-index: 100;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
-            text-align: center;
-        }
-
-        .promo-pieces {
-            display: flex;
-            gap: 12px;
-            margin-top: 12px;
-        }
-
-        .promo-piece-btn {
-            width: 60px;
-            height: 60px;
-            background-size: contain;
-            background-repeat: no-repeat;
-            background-position: center;
-            cursor: pointer;
-            border-radius: 6px;
-            background-color: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            transition: all 0.15s ease;
-        }
-
-        .promo-piece-btn:hover {
-            background-color: #4a4743;
-            transform: scale(1.1);
-        }
-
-        /* Game Over Banner */
-        .game-status-banner {
-            display: none;
-            margin-top: 10px;
-            padding: 10px 14px;
-            border-radius: 6px;
+            font-size: 11px;
             font-weight: 700;
-            font-size: 0.9rem;
-            text-align: center;
+            pointer-events: none;
+            opacity: 0.8;
+            font-family: var(--font-mono);
         }
-        .banner-win { background: #2f6627; color: #b1f0a8; border: 1px solid #439637; }
-        .banner-loss { background: #782828; color: #f0a8a8; border: 1px solid #a63838; }
-        .banner-draw { background: #444; color: #ddd; border: 1px solid #666; }
+        .coord-rank { top: 4px; left: 4px; }
+        .coord-file { bottom: 4px; right: 4px; }
+        .sq.light .coord { color: var(--board-dark); }
+        .sq.dark .coord { color: var(--board-light); }
 
-        /* Right Panel */
-        .sidebar {
-            flex: 1;
+        /* Toolbar */
+        .board-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--r-md);
+            padding: 8px 12px;
+        }
+
+        .btn-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        button {
+            font-family: var(--font-ui);
+            font-size: 12px;
+            font-weight: 600;
+            padding: 6px 12px;
+            border-radius: var(--r-sm);
+            border: 1px solid var(--border);
+            background-color: var(--bg-tertiary);
+            color: var(--text-bright);
+            cursor: pointer;
+            transition: all var(--t-fast) ease;
+        }
+
+        button:hover {
+            background-color: var(--bg-raised);
+            border-color: #555;
+        }
+
+        button.primary {
+            background-color: var(--accent);
+            border-color: var(--accent-hover);
+            color: #fff;
+        }
+        button.primary:hover {
+            background-color: var(--accent-hover);
+        }
+
+        /* Right Column Cards */
+        .right-column {
             display: flex;
             flex-direction: column;
             gap: 16px;
-            min-width: 380px;
         }
 
         .card {
             background-color: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
+            border: 1px solid var(--border);
+            border-radius: var(--r-lg);
             padding: 16px;
+            position: relative;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.35);
         }
 
         .card-header {
-            font-size: 0.95rem;
-            font-weight: 700;
-            color: var(--text-bright);
-            margin-bottom: 12px;
             display: flex;
-            justify-content: space-between;
             align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
         }
 
-        /* MultiPV lines */
+        .card-title {
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+        }
+
+        /* Engine Lines */
         .multipv-list {
             display: flex;
             flex-direction: column;
             gap: 8px;
         }
 
-        .multipv-item {
-            background: var(--bg-tertiary);
-            padding: 10px 12px;
-            border-radius: 4px;
+        .multipv-row {
+            border-radius: var(--r-md);
+            padding: 8px 10px;
+            background-color: var(--bg-primary);
+            border: 1px solid var(--border-soft);
             display: flex;
             flex-direction: column;
-            gap: 4px;
-            font-size: 0.85rem;
-            border-left: 4px solid #555;
+            gap: 6px;
         }
 
-        .multipv-item.top {
-            border-left-color: var(--accent);
-            background: #2b3524;
+        .multipv-row.dominant {
+            border-left: 3px solid var(--accent);
+            background-color: var(--bg-raised);
         }
 
-        .multipv-header {
+        .multipv-main {
             display: flex;
-            justify-content: space-between;
             align-items: center;
+            justify-content: space-between;
+        }
+
+        .multipv-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: var(--font-mono);
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-bright);
+        }
+
+        .rank-chip {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            background-color: var(--bg-tertiary);
+            color: var(--text-bright);
+            font-size: 11px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .score-pill {
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 11px;
             font-weight: 700;
-            padding: 2px 7px;
-            border-radius: 4px;
-            font-size: 0.8rem;
+            font-variant-numeric: tabular-nums;
         }
 
-        .score-pos { background: #2f6627; color: #b1f0a8; }
-        .score-neg { background: #782828; color: #f0a8a8; }
-        .score-even { background: #444; color: #ddd; }
+        .score-pill.pos {
+            background-color: var(--accent-wash);
+            color: var(--accent-text);
+            border: 1px solid rgba(142, 220, 117, 0.25);
+        }
 
-        .pv-moves {
-            color: #ddd;
-            font-family: monospace;
-            font-size: 0.82rem;
+        .score-pill.neg {
+            background-color: var(--danger-wash);
+            color: var(--danger-text);
+            border: 1px solid rgba(240, 168, 168, 0.25);
+        }
+
+        .pv-full-moves {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--text-main);
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            opacity: 0.85;
         }
 
-        /* Move list table */
-        .moves-box {
-            height: 180px;
-            overflow-y: auto;
-            background: var(--bg-primary);
-            border-radius: 4px;
-            padding: 8px;
-            font-size: 0.85rem;
-            font-family: monospace;
+        /* Nen Persona Card & Radar */
+        .nen-card {
+            position: relative;
+            overflow: hidden;
         }
 
-        .move-row {
+        .nen-aura-glow {
+            position: absolute;
+            top: 70px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 240px;
+            height: 240px;
+            border-radius: 50%;
+            background: radial-gradient(circle, var(--nen-transmutation) 0%, transparent 70%);
+            filter: blur(40px);
+            opacity: 0.28;
+            pointer-events: none;
+            transition: all 400ms ease;
+            z-index: 0;
+        }
+
+        .nen-radar-wrapper {
+            position: relative;
+            z-index: 1;
             display: flex;
-            padding: 4px 6px;
-            border-radius: 3px;
+            justify-content: center;
+            align-items: center;
+            margin: 4px 0 12px 0;
         }
 
-        .move-row:nth-child(even) { background: rgba(255,255,255,0.02); }
-        .move-num { width: 45px; color: #777; }
-        .move-white, .move-black { flex: 1; color: var(--text-bright); }
-
-        /* Controls */
-        .btn-group {
+        .nen-sliders-list {
             display: flex;
-            gap: 8px;
-            margin-top: 8px;
+            flex-direction: column;
+            gap: 10px;
+            position: relative;
+            z-index: 1;
+            margin-bottom: 14px;
         }
 
-        button {
-            background-color: var(--bg-tertiary);
-            color: var(--text-bright);
-            border: 1px solid var(--border-color);
-            padding: 8px 14px;
-            border-radius: 4px;
-            cursor: pointer;
+        .nen-slider-row {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .slider-labels-row {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+        }
+
+        .slider-left-labels {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .nen-kanji {
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .nen-romaji {
+            font-size: 10px;
             font-weight: 600;
-            font-size: 0.85rem;
-            transition: all 0.15s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
         }
 
-        button:hover {
-            background-color: #4a4743;
-            border-color: #666;
+        .slider-val {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-bright);
+            font-variant-numeric: tabular-nums;
         }
 
-        button.primary {
-            background-color: var(--accent);
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: var(--bg-tertiary);
+            outline: none;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #fff;
+            box-shadow: 0 0 4px rgba(0,0,0,0.5);
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        /* Preset Chips */
+        .preset-chips-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .preset-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 10px;
+            border-radius: var(--r-pill);
+            border: 1px solid var(--border);
+            background-color: transparent;
+            color: var(--text-main);
+            font-size: 11px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all var(--t-fast) ease;
+        }
+
+        .preset-chip:hover {
+            background-color: var(--bg-raised);
+            border-color: #58544E;
+            color: var(--text-bright);
+        }
+
+        .preset-chip.active {
+            border-color: var(--nen-transmutation);
+            background-color: rgba(155, 92, 255, 0.14);
+            color: var(--text-bright);
+            font-weight: 600;
+        }
+
+        .affinity-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        /* Move History Box */
+        .moves-box {
+            max-height: 140px;
+            overflow-y: auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            padding: 4px;
+            background: var(--bg-primary);
+            border-radius: var(--r-md);
+            border: 1px solid var(--border-soft);
+        }
+
+        .move-entry {
+            padding: 3px 6px;
+            border-radius: 3px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .move-entry.latest {
+            background-color: var(--accent-wash);
+            color: var(--accent-text);
+            font-weight: 700;
+        }
+
+        /* Status Banner */
+        .game-status-banner {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(22, 21, 18, 0.95);
+            border: 2px solid var(--accent);
+            padding: 16px 28px;
+            border-radius: var(--r-lg);
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #fff;
+            z-index: 100;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.7);
+            display: none;
+            text-align: center;
+        }
+
+        /* Promo Backdrop & Modal */
+        .promo-backdrop {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.65);
+            z-index: 105;
+            border-radius: var(--r-md);
+            cursor: pointer;
+        }
+
+        .promo-modal {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #222;
+            border: 2px solid var(--border);
+            border-radius: var(--r-md);
+            padding: 14px;
+            z-index: 110;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.8);
+            text-align: center;
+        }
+
+        .promo-pieces {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .promo-piece-btn {
+            width: 50px;
+            height: 50px;
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            cursor: pointer;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background-color: var(--bg-tertiary);
+        }
+        .promo-piece-btn:hover {
+            background-color: var(--bg-raised);
             border-color: var(--accent);
         }
 
-        button.primary:hover {
-            background-color: var(--accent-hover);
+        /* Segmented Control for PESTO / NNUE */
+        .segmented-control {
+            display: flex;
+            background-color: var(--bg-tertiary);
+            border-radius: var(--r-sm);
+            padding: 2px;
+            border: 1px solid var(--border);
+            gap: 2px;
         }
 
-        button.active {
-            background-color: var(--accent-blue);
-            border-color: var(--accent-blue);
+        .segmented-btn {
+            flex: 1;
+            padding: 6px 12px;
+            border: none;
+            background: transparent;
+            color: var(--text-sub);
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            border-radius: 3px;
+            transition: all 150ms ease;
         }
 
-        .fen-input {
-            width: 100%;
-            background: var(--bg-primary);
-            border: 1px solid var(--border-color);
-            color: #eee;
-            padding: 8px 10px;
-            border-radius: 4px;
-            font-family: monospace;
-            font-size: 0.8rem;
-            margin-top: 8px;
+        .segmented-btn.active {
+            background-color: var(--accent);
+            color: #FFFFFF;
         }
 
-        .switch-container {
+        .settings-helper-text {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 6px;
+            font-style: italic;
+        }
+
+        /* Responsive Breakpoints */
+        @media (max-width: 1279px) {
+            :root {
+                --board-size: 480px;
+            }
+            .app-body {
+                grid-template-columns: calc(var(--board-size) + var(--evalbar-width) + 12px) 1fr;
+                padding: 16px;
+                column-gap: 16px;
+            }
+        }
+
+        @media (max-width: 1023px) {
+            :root {
+                --board-size: 360px;
+            }
+            .app-body {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                padding: 12px;
+                gap: 16px;
+            }
+            .left-column {
+                width: 100%;
+                align-items: center;
+            }
+            .right-column {
+                width: 100%;
+                max-width: 520px;
+            }
+        }
+
+        /* Status Bar */
+        .status-bar {
+            height: 32px;
+            background-color: var(--bg-secondary);
+            border-top: 1px solid var(--border);
             display: flex;
             align-items: center;
             justify-content: space-between;
-            font-size: 0.85rem;
-            padding: 6px 0;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
+            padding: 0 24px;
+            font-size: 11px;
+            color: var(--text-muted);
         }
 
-        select {
-            background: #333;
-            color: #fff;
-            border: 1px solid #555;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 0.85rem;
+        .keycaps-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .keycap {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 4px;
+            height: 18px;
+            border-radius: 3px;
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            color: var(--text-bright);
+            font-family: var(--font-mono);
+            font-size: 10px;
+            font-weight: 600;
+            margin-right: 4px;
         }
     </style>
 </head>
 <body>
-    <header>
-        <div class="logo">
-            <span>♟️ TanmayChess</span>
-            <span class="badge" id="engine-name-badge">Classical PeSTO Engine</span>
+
+    <!-- Header -->
+    <header class="app-bar">
+        <div class="app-bar-left">
+            <div class="knight-tile" title="Chess Engine">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M19 19H5v-2a4 4 0 0 1 4-4h1V9a4 4 0 0 1 4-4h1a3 3 0 0 1 3 3v2a2 2 0 0 1-2 2h-1v7Z"/>
+                    <circle cx="13" cy="9" r="1" fill="currentColor"/>
+                </svg>
+            </div>
+            <span class="wordmark">Chess Engine</span>
+            <span class="badge-nen">Style Engine · C++17</span>
         </div>
-        <div class="top-stats">
-            <div class="stat-item">Eval: <span id="stat-score">+0.0</span></div>
-            <div class="stat-item">Depth: <span id="stat-depth">0</span></div>
-            <div class="stat-item">Nodes: <span id="stat-nodes">0</span></div>
-            <div class="stat-item">NPS: <span id="stat-nps">0</span></div>
+
+        <div class="stat-chips">
+            <div class="stat-chip">
+                <span class="stat-label">EVAL</span>
+                <span class="stat-value" id="stat-score" style="color: var(--accent-text);">+0.00</span>
+            </div>
+            <div class="stat-chip">
+                <span class="stat-label">DEPTH</span>
+                <span class="stat-value" id="stat-depth">0</span>
+            </div>
+            <div class="stat-chip">
+                <span class="stat-label">NODES</span>
+                <span class="stat-value" id="stat-nodes">0</span>
+            </div>
+            <div class="stat-chip">
+                <span class="stat-label">
+                    NPS
+                    <span class="eq-bars" title="Calculating">
+                        <span class="eq-bar"></span>
+                        <span class="eq-bar"></span>
+                        <span class="eq-bar"></span>
+                    </span>
+                </span>
+                <span class="stat-value" id="stat-nps">0</span>
+            </div>
         </div>
     </header>
 
-    <main>
-        <!-- Left: Chessboard + Eval Bar -->
-        <div class="board-container">
-            <div class="eval-bar-wrapper">
-                <div class="eval-bar-black" id="eval-bar-black" style="height: 50%;"></div>
-                <div class="eval-bar-white"></div>
-                <div class="eval-text" id="eval-bar-text">+0.0</div>
+    <!-- Main Workspace -->
+    <main class="app-body">
+        <!-- Left: Board + Lichess Eval Bar -->
+        <div class="left-column">
+            <div class="board-container-row">
+                <!-- Lichess-Grade Evaluation Bar -->
+                <aside class="eval-bar" id="eval-bar" title="Evaluation">
+                    <div class="eval-bar-black" id="eval-bar-black" style="height: 50%;"></div>
+                    <div class="eval-bar-white" id="eval-bar-white"></div>
+                    <div class="eval-score-badge white-win" id="eval-bar-text">+0.0</div>
+                </aside>
+
+                <!-- Board Wrapper (640px) -->
+                <div class="board-wrapper">
+                    <div class="board-grid" id="board" aria-label="Chess Board" tabindex="0"></div>
+
+                    <!-- Promotion Modal & Backdrop -->
+                    <div class="promo-backdrop" id="promo-backdrop" onclick="cancelPromotion()"></div>
+                    <div class="promo-modal" id="promo-modal" role="dialog" aria-modal="true" aria-label="Pawn Promotion">
+                        <div style="font-weight:700; color:#fff; font-size:12px; margin-bottom:8px;">PROMOTION</div>
+                        <div class="promo-pieces" id="promo-pieces-container"></div>
+                    </div>
+
+                    <!-- Game Status Banner -->
+                    <div class="game-status-banner" id="game-status-banner"></div>
+                </div>
             </div>
 
-            <div class="board-wrapper">
-                <div class="board" id="board"></div>
-
-                <!-- Promotion Modal -->
-                <div class="promo-modal" id="promo-modal">
-                    <div style="font-weight:700; color:#fff; font-size:0.95rem;">Choose Promotion</div>
-                    <div class="promo-pieces" id="promo-pieces-container"></div>
+            <!-- Toolbar -->
+            <div class="board-toolbar">
+                <div class="btn-group">
+                    <button onclick="newGame()">+ New Game</button>
+                    <button onclick="flipBoard()">⇅ Flip</button>
+                    <button onclick="undoMove()">↶ Undo</button>
+                    <button onclick="copyFEN()">⎘ Copy FEN</button>
                 </div>
-
-                <div class="game-status-banner" id="game-status-banner"></div>
-
-                <div class="btn-group" style="margin-top: 12px; justify-content: space-between;">
-                    <div>
-                        <button onclick="newGame()">New Game</button>
-                        <button onclick="flipBoard()">Flip Board</button>
-                        <button onclick="undoMove()">Undo</button>
-                    </div>
-                    <div>
-                        <button id="btn-toggle-engine" class="primary active" onclick="toggleEnginePlay()">Play Engine: ON</button>
-                    </div>
+                <div class="btn-group">
+                    <button id="btn-toggle-engine" class="primary" onclick="toggleEnginePlay()">Play Engine: ON</button>
                 </div>
             </div>
         </div>
 
-        <!-- Right: MultiPV Analysis & Moves -->
-        <div class="sidebar">
-            <!-- MultiPV Analysis -->
-            <div class="card">
+        <!-- Right: MultiPV, Style Persona & Moves -->
+        <div class="right-column">
+            <!-- 1. Engine Lines -->
+            <section class="card">
                 <div class="card-header">
-                    <span>⚡ Top Engine Analysis (MultiPV)</span>
-                    <span style="font-size: 0.75rem; color: #8edc75;" id="engine-status-tag">Ready</span>
+                    <span class="card-title">ENGINE LINES</span>
+                    <span style="font-size: 10px; font-weight: 700; color: var(--accent-text);" id="engine-status-tag">READY</span>
                 </div>
                 <div class="multipv-list" id="multipv-container">
-                    <div class="multipv-item top">
-                        <div class="multipv-header">
-                            <span style="font-weight: 700;">1. Ready</span>
-                            <span class="score-pill score-even">+0.00</span>
+                    <div class="multipv-row dominant">
+                        <div class="multipv-main">
+                            <div class="multipv-left">
+                                <span class="rank-chip">1</span>
+                                <span>Make a move to start analysis</span>
+                            </div>
+                            <span class="score-pill pos">+0.00</span>
                         </div>
-                        <div class="pv-moves">Make a move to start analysis</div>
                     </div>
                 </div>
-            </div>
+            </section>
 
-            <!-- Move History -->
-            <div class="card">
-                <div class="card-header">Move History (SAN)</div>
+            <!-- 2. Playstyle Matrix Card (Hero Component) -->
+            <section class="card nen-card">
+                <div class="nen-aura-glow" id="nen-aura"></div>
+                <div class="card-header" style="position: relative; z-index: 1;">
+                    <div style="display: flex; align-items: baseline; gap: 8px;">
+                        <span class="card-title">NEN PERSONA</span>
+                        <span class="card-subtitle" id="nen-persona-subtitle" style="font-size: 11px; color: var(--text-muted);">Balanced Nen</span>
+                    </div>
+                    <button style="padding: 2px 8px; font-size: 10px;" onclick="resetStyleProfile()">Reset</button>
+                </div>
+
+                <!-- 260x260 SVG Hexagon Radar -->
+                <div class="nen-radar-wrapper">
+                    <svg width="260" height="260" viewBox="0 0 260 260">
+                        <defs>
+                            <radialGradient id="hexFillGrad" cx="50%" cy="50%" r="50%">
+                                <stop id="hex-grad-stop0" offset="0%" stop-color="#3B82F6" stop-opacity="0.45"/>
+                                <stop id="hex-grad-stop1" offset="100%" stop-color="#3B82F6" stop-opacity="0.12"/>
+                            </radialGradient>
+                        </defs>
+
+                        <!-- Background Concentric Rings (Center = 130, 130) -->
+                        <polygon points="130,110 147.3,120 147.3,140 130,150 112.7,140 112.7,120" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+                        <polygon points="130,85 168.9,107.5 168.9,152.5 130,175 91.1,152.5 91.1,107.5" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+                        <polygon points="130,60 190.6,95 190.6,165 130,200 69.4,165 69.4,95" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+                        <polygon points="130,38 209.7,84 209.7,176 130,222 50.3,176 50.3,84" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="1"/>
+
+                        <!-- Radial Spokes -->
+                        <line x1="130" y1="130" x2="130" y2="38" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+                        <line x1="130" y1="130" x2="209.7" y2="84" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+                        <line x1="130" y1="130" x2="209.7" y2="176" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+                        <line x1="130" y1="130" x2="130" y2="222" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+                        <line x1="130" y1="130" x2="50.3" y2="176" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+                        <line x1="130" y1="130" x2="50.3" y2="84" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+
+                        <!-- Morphing Style Radar Polygon -->
+                        <polygon id="radar-val-poly" points="130,84 170,107 170,153 130,176 90,153 90,107"
+                                 fill="url(#hexFillGrad)" stroke="#3B82F6" stroke-width="2" style="transition: all 250ms ease;"/>
+
+                        <!-- Vertex Dots -->
+                        <circle id="dot-calculation" cx="130" cy="84" r="3.5" fill="#fff" stroke="#3B82F6" stroke-width="2"/>
+                        <circle id="dot-aggression" cx="170" cy="107" r="3.5" fill="#fff" stroke="#9B5CFF" stroke-width="2"/>
+                        <circle id="dot-structure" cx="170" cy="153" r="3.5" fill="#fff" stroke="#F59E0B" stroke-width="2"/>
+                        <circle id="dot-creativity" cx="130" cy="176" r="3.5" fill="#fff" stroke="#06B6D4" stroke-width="2"/>
+                        <circle id="dot-prophylaxis" cx="90" cy="153" r="3.5" fill="#fff" stroke="#10B981" stroke-width="2"/>
+                        <circle id="dot-activity" cx="90" cy="107" r="3.5" fill="#fff" stroke="#EF4444" stroke-width="2"/>
+
+                        <!-- Dual Kanji + Romaji Attribute Labels -->
+                        <text x="130" y="16" text-anchor="middle" fill="#3B82F6" font-size="12" font-weight="700">強化</text>
+                        <text x="130" y="27" text-anchor="middle" fill="var(--text-sub)" font-size="8.5" font-weight="600">ENHANCEMENT</text>
+
+                        <text x="216" y="78" text-anchor="start" fill="#9B5CFF" font-size="12" font-weight="700">変化</text>
+                        <text x="216" y="89" text-anchor="start" fill="var(--text-sub)" font-size="8" font-weight="600">TRANSMUTATION</text>
+
+                        <text x="216" y="174" text-anchor="start" fill="#F59E0B" font-size="12" font-weight="700">具現化</text>
+                        <text x="216" y="185" text-anchor="start" fill="var(--text-sub)" font-size="8" font-weight="600">CONJURATION</text>
+
+                        <text x="130" y="238" text-anchor="middle" fill="#06B6D4" font-size="12" font-weight="700">特質</text>
+                        <text x="130" y="249" text-anchor="middle" fill="var(--text-sub)" font-size="8.5" font-weight="600">SPECIALIZATION</text>
+
+                        <text x="44" y="174" text-anchor="end" fill="#10B981" font-size="12" font-weight="700">操作</text>
+                        <text x="44" y="185" text-anchor="end" fill="var(--text-sub)" font-size="8" font-weight="600">MANIPULATION</text>
+
+                        <text x="44" y="78" text-anchor="end" fill="#EF4444" font-size="12" font-weight="700">放出</text>
+                        <text x="44" y="89" text-anchor="end" fill="var(--text-sub)" font-size="8" font-weight="600">EMISSION</text>
+                    </svg>
+                </div>
+
+                <!-- 6 Continuous Precision Sliders with Dual Labels -->
+                <div class="nen-sliders-list">
+                    <!-- Enhancement / Calculation -->
+                    <div class="nen-slider-row">
+                        <div class="slider-labels-row">
+                            <div class="slider-left-labels">
+                                <span class="nen-kanji" style="color: #3B82F6;">強化 ENHANCEMENT</span>
+                                <span class="nen-romaji">Calculation & Material</span>
+                            </div>
+                            <span class="slider-val" id="val-calculation">50%</span>
+                        </div>
+                        <input type="range" id="slider-calculation" min="0" max="100" value="50" oninput="onStyleSliderInput('calculation', this.value)">
+                    </div>
+
+                    <!-- Transmutation / Aggression -->
+                    <div class="nen-slider-row">
+                        <div class="slider-labels-row">
+                            <div class="slider-left-labels">
+                                <span class="nen-kanji" style="color: #9B5CFF;">変化 TRANSMUTATION</span>
+                                <span class="nen-romaji">Aggression & Sacrifices</span>
+                            </div>
+                            <span class="slider-val" id="val-aggression">50%</span>
+                        </div>
+                        <input type="range" id="slider-aggression" min="0" max="100" value="50" oninput="onStyleSliderInput('aggression', this.value)">
+                    </div>
+
+                    <!-- Conjuration / Structure -->
+                    <div class="nen-slider-row">
+                        <div class="slider-labels-row">
+                            <div class="slider-left-labels">
+                                <span class="nen-kanji" style="color: #F59E0B;">具現化 CONJURATION</span>
+                                <span class="nen-romaji">Structure & Outposts</span>
+                            </div>
+                            <span class="slider-val" id="val-structure">50%</span>
+                        </div>
+                        <input type="range" id="slider-structure" min="0" max="100" value="50" oninput="onStyleSliderInput('structure', this.value)">
+                    </div>
+
+                    <!-- Specialization / Creativity -->
+                    <div class="nen-slider-row">
+                        <div class="slider-labels-row">
+                            <div class="slider-left-labels">
+                                <span class="nen-kanji" style="color: #06B6D4;">特質 SPECIALIZATION</span>
+                                <span class="nen-romaji">Creativity & Imbalance</span>
+                            </div>
+                            <span class="slider-val" id="val-creativity">50%</span>
+                        </div>
+                        <input type="range" id="slider-creativity" min="0" max="100" value="50" oninput="onStyleSliderInput('creativity', this.value)">
+                    </div>
+
+                    <!-- Manipulation / Prophylaxis -->
+                    <div class="nen-slider-row">
+                        <div class="slider-labels-row">
+                            <div class="slider-left-labels">
+                                <span class="nen-kanji" style="color: #10B981;">操作 MANIPULATION</span>
+                                <span class="nen-romaji">Prophylaxis & Control</span>
+                            </div>
+                            <span class="slider-val" id="val-prophylaxis">50%</span>
+                        </div>
+                        <input type="range" id="slider-prophylaxis" min="0" max="100" value="50" oninput="onStyleSliderInput('prophylaxis', this.value)">
+                    </div>
+
+                    <!-- Emission / Activity -->
+                    <div class="nen-slider-row">
+                        <div class="slider-labels-row">
+                            <div class="slider-left-labels">
+                                <span class="nen-kanji" style="color: #EF4444;">放出 EMISSION</span>
+                                <span class="nen-romaji">Activity & Mobility</span>
+                            </div>
+                            <span class="slider-val" id="val-activity">50%</span>
+                        </div>
+                        <input type="range" id="slider-activity" min="0" max="100" value="50" oninput="onStyleSliderInput('activity', this.value)">
+                    </div>
+                </div>
+
+                <!-- GM Archetype Preset Chips -->
+                <div class="preset-chips-grid">
+                    <button class="preset-chip" onclick="applyPreset('Tal')">
+                        <span class="affinity-dot" style="background: #9B5CFF;"></span>
+                        Mikhail Tal
+                    </button>
+                    <button class="preset-chip" onclick="applyPreset('Petrosian')">
+                        <span class="affinity-dot" style="background: #10B981;"></span>
+                        Tigran Petrosian
+                    </button>
+                    <button class="preset-chip" onclick="applyPreset('Karpov')">
+                        <span class="affinity-dot" style="background: #F59E0B;"></span>
+                        Anatoly Karpov
+                    </button>
+                    <button class="preset-chip" onclick="applyPreset('Morphy')">
+                        <span class="affinity-dot" style="background: #EF4444;"></span>
+                        Paul Morphy
+                    </button>
+                    <button class="preset-chip" onclick="applyPreset('Kasparov')">
+                        <span class="affinity-dot" style="background: #3B82F6;"></span>
+                        Garry Kasparov
+                    </button>
+                    <button class="preset-chip" onclick="applyPreset('Carlsen')">
+                        <span class="affinity-dot" style="background: #06B6D4;"></span>
+                        Magnus Carlsen
+                    </button>
+                    <button class="preset-chip active" onclick="applyPreset('Balanced')">
+                        <span class="affinity-dot" style="background: var(--text-muted);"></span>
+                        Balanced Nen
+                    </button>
+                </div>
+            </section>
+
+            <!-- 3. Move History -->
+            <section class="card">
+                <div class="card-header">
+                    <span class="card-title">MOVES</span>
+                </div>
                 <div class="moves-box" id="moves-box"></div>
-            </div>
+            </section>
 
-            <!-- Settings & FEN -->
-            <div class="card">
-                <div class="card-header">Position & Engine Controls</div>
-                <div class="switch-container">
-                    <span>Evaluation Mode:</span>
-                    <select id="select-eval-mode" onchange="changeEvalMode(this.value)">
-                        <option value="pesto" selected>Hand-Crafted (PeSTO - Recommended)</option>
-                        <option value="nnue">Simple768 NNUE (Experimental)</option>
-                    </select>
+            <!-- 4. Settings & Position Setup -->
+            <section class="card">
+                <div class="card-header">
+                    <span class="card-title">SETTINGS & POSITION</span>
                 </div>
-                <div class="switch-container">
-                    <span>Engine Think Time:</span>
-                    <select id="select-think-time">
-                        <option value="200">Fast (200 ms)</option>
-                        <option value="500" selected>Normal (500 ms)</option>
-                        <option value="1000">Deep (1000 ms)</option>
-                        <option value="2000">Master (2000 ms)</option>
-                    </select>
+                <div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 12px;">
+                    <div>
+                        <div style="font-size: 11px; font-weight: 700; color: var(--text-sub); margin-bottom: 6px;">EVALUATION ENGINE</div>
+                        <div class="segmented-control" id="nnue-segmented">
+                            <button type="button" class="segmented-btn active" id="btn-eval-pesto" onclick="setEvalEngine(false)">PESTO (Classical)</button>
+                            <button type="button" class="segmented-btn" id="btn-eval-nnue" onclick="setEvalEngine(true)">NNUE</button>
+                        </div>
+                        <div class="settings-helper-text">Changing a Nen slider switches to Classical automatically</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 11px; font-weight: 700; color: var(--text-sub); margin-bottom: 6px;">LOAD CUSTOM FEN</div>
+                        <div style="display: flex; gap: 6px;">
+                            <input type="text" id="custom-fen-input" placeholder="paste FEN string..." style="flex: 1; padding: 6px 8px; font-size: 11px; font-family: var(--font-mono); background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: var(--r-sm); color: #fff;">
+                            <button type="button" onclick="loadCustomFEN()" style="padding: 6px 12px; font-size: 11px;">Load</button>
+                        </div>
+                    </div>
                 </div>
-                <div class="switch-container">
-                    <span>MultiPV Lines:</span>
-                    <select id="select-multipv" onchange="changeMultiPV(this.value)">
-                        <option value="1">1 Line</option>
-                        <option value="2">2 Lines</option>
-                        <option value="3" selected>3 Lines</option>
-                        <option value="5">5 Lines</option>
-                    </select>
-                </div>
-                <input type="text" class="fen-input" id="fen-input" placeholder="Paste FEN here..." onchange="loadCustomFen(this.value)">
-            </div>
+            </section>
         </div>
     </main>
 
-    <script>
-        function getPieceImage(type, color) {
-            return `/pieces/${color}${type.toUpperCase()}.svg`;
-        }
+    <!-- Bottom Status Bar -->
+    <footer class="status-bar">
+        <span>Local engine · 100% Native C++ (PeSTO + NNUE)</span>
+        <div class="keycaps-group">
+            <span><span class="keycap">F</span>flip</span>
+            <span><span class="keycap">U</span>undo</span>
+            <span><span class="keycap">N</span>new game</span>
+            <span><span class="keycap">Space</span>play engine</span>
+        </div>
+    </footer>
 
-        // Convert FEN string to 8x8 2D array: rank 8 down to 1
+    <!-- Scripts -->
+    <script>
+        // Global Game State
+        let gameState = {
+            fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            side: "w",
+            check: false,
+            mate: false,
+            stalemate: false,
+            legalMoves: []
+        };
+        let gameMoves = [];
+        let isFlipped = false;
+        let selectedSquare = null;
+        let legalTargets = [];
+        let lastMove = null;
+        let playAgainstEngine = true;
+        let playerColor = 'w';
+        let pendingPromotion = null;
+        let multiPVLines = {};
+
+        // Playstyle Profile
+        let styleProfile = {
+            calculation: 50,
+            aggression: 50,
+            structure: 50,
+            creativity: 50,
+            prophylaxis: 50,
+            activity: 50
+        };
+        let currentPreset = 'Balanced';
+
+        const PRESETS = {
+            'Tal': { calculation: 68, aggression: 70, structure: 40, creativity: 56, prophylaxis: 58, activity: 62 },
+            'Petrosian': { calculation: 25, aggression: 61, structure: 59, creativity: 61, prophylaxis: 76, activity: 79 },
+            'Karpov': { calculation: 28, aggression: 79, structure: 30, creativity: 95, prophylaxis: 81, activity: 25 },
+            'Morphy': { calculation: 95, aggression: 95, structure: 39, creativity: 25, prophylaxis: 25, activity: 67 },
+            'Kasparov': { calculation: 50, aggression: 54, structure: 25, creativity: 85, prophylaxis: 76, activity: 90 },
+            'Carlsen': { calculation: 66, aggression: 25, structure: 95, creativity: 75, prophylaxis: 95, activity: 95 },
+            'Balanced': { calculation: 50, aggression: 50, structure: 50, creativity: 50, prophylaxis: 50, activity: 50 }
+        };
+
+        // Initialize Board Matrix from FEN
         function fenToBoard(fen) {
             const board = Array(8).fill(null).map(() => Array(8).fill(null));
-            if (!fen) return board;
-            const parts = fen.trim().split(' ');
-            const ranks = parts[0].split('/');
+            const parts = fen.split(' ');
+            const rows = parts[0].split('/');
 
-            for (let r = 0; r < 8 && r < ranks.length; r++) {
-                let f = 0;
-                const rankStr = ranks[r];
-                for (let i = 0; i < rankStr.length && f < 8; i++) {
-                    const ch = rankStr[i];
-                    if (ch >= '1' && ch <= '8') {
-                        f += parseInt(ch, 10);
+            for (let r = 0; r < 8; r++) {
+                let file = 0;
+                for (let c of rows[r]) {
+                    if (c >= '1' && c <= '8') {
+                        file += parseInt(c, 10);
                     } else {
-                        const color = (ch === ch.toUpperCase()) ? 'w' : 'b';
-                        const type = ch.toLowerCase();
-                        board[r][f] = { type, color };
-                        f++;
+                        const color = (c === c.toUpperCase()) ? 'w' : 'b';
+                        const piece = c.toLowerCase();
+                        board[r][file] = { color, piece };
+                        file++;
                     }
                 }
             }
             return board;
         }
 
+        function getPieceImage(piece, color) {
+            return `/pieces/${color}${piece.toUpperCase()}.svg`;
+        }
+
         function getKingSquare(board, color) {
             for (let r = 0; r < 8; r++) {
                 for (let f = 0; f < 8; f++) {
                     const p = board[r][f];
-                    if (p && p.type === 'k' && p.color === color) {
+                    if (p && p.color === color && p.piece === 'k') {
                         return String.fromCharCode('a'.charCodeAt(0) + f) + (8 - r);
                     }
                 }
@@ -565,34 +1327,8 @@
             return null;
         }
 
-        function getEnPassantSquare(fen) {
-            if (!fen) return '-';
-            const parts = fen.trim().split(' ');
-            return parts[3] || '-';
-        }
-
-        let gameState = {
-            fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-            side: 'w',
-            check: false,
-            mate: false,
-            stalemate: false,
-            halfmove: 0,
-            fullmove: 1,
-            legalMoves: []
-        };
-        let gameMoves = [];
-        let selectedSquare = null;
-        let legalTargets = [];
-        let isFlipped = false;
-        let lastMove = null;
-        let playAgainstEngine = true;
-        let playerColor = 'w';
-        let pendingPromotion = null;
-        let multiPVLines = {};
-        let boardMatrix = fenToBoard(gameState.fen);
-
         function getPieceAt(coord) {
+            const boardMatrix = fenToBoard(gameState.fen);
             const col = coord.charCodeAt(0) - 'a'.charCodeAt(0);
             const row = 8 - parseInt(coord[1], 10);
             if (row >= 0 && row < 8 && col >= 0 && col < 8) {
@@ -605,7 +1341,7 @@
             const boardEl = document.getElementById('board');
             boardEl.innerHTML = '';
 
-            boardMatrix = fenToBoard(gameState.fen);
+            const boardMatrix = fenToBoard(gameState.fen);
             const inCheckSquare = gameState.check ? getKingSquare(boardMatrix, gameState.side) : null;
 
             for (let r = 0; r < 8; r++) {
@@ -616,35 +1352,83 @@
 
                     const isDark = (row + col) % 2 === 1;
                     const sqEl = document.createElement('div');
-                    sqEl.className = `square ${isDark ? 'dark' : 'light'}`;
+                    sqEl.className = `sq ${isDark ? 'dark' : 'light'}`;
                     sqEl.dataset.coord = squareCoord;
 
-                    if (selectedSquare === squareCoord) sqEl.classList.add('selected');
+                    if (selectedSquare === squareCoord) sqEl.classList.add('hl-select');
                     if (lastMove && (lastMove.from === squareCoord || lastMove.to === squareCoord)) {
-                        sqEl.classList.add('last-move');
+                        sqEl.classList.add('hl-last');
                     }
                     if (inCheckSquare === squareCoord) {
-                        sqEl.classList.add('in-check');
+                        sqEl.classList.add('hl-check');
                     }
 
-                    // Legal destination indicators
+                    // Move hint dots/rings
                     const targetMove = legalTargets.find(m => m.slice(2, 4) === squareCoord);
                     if (targetMove) {
                         const targetPiece = boardMatrix[row][col];
-                        const isCapture = (targetPiece !== null) || (targetMove.length >= 4 && squareCoord === getEnPassantSquare(gameState.fen));
+                        const isCapture = (targetPiece !== null);
                         if (isCapture) {
-                            sqEl.classList.add('legal-capture');
+                            sqEl.classList.add('sq-hint-ring');
                         } else {
-                            sqEl.classList.add('legal-target');
+                            sqEl.classList.add('sq-hint-dot');
                         }
                     }
 
+                    // Piece image & HTML5 Drag and Drop
                     const piece = boardMatrix[row][col];
                     if (piece) {
-                        const pieceEl = document.createElement('div');
-                        pieceEl.className = 'piece';
-                        pieceEl.style.backgroundImage = `url('${getPieceImage(piece.type, piece.color)}')`;
-                        sqEl.appendChild(pieceEl);
+                        const img = document.createElement('img');
+                        img.className = 'piece-img';
+                        img.src = getPieceImage(piece.piece, piece.color);
+
+                        const canDrag = (piece.color === gameState.side && (!playAgainstEngine || gameState.side === playerColor));
+                        img.draggable = canDrag;
+                        if (canDrag) {
+                            img.ondragstart = (e) => {
+                                e.dataTransfer.setData('text/plain', squareCoord);
+                                e.dataTransfer.effectAllowed = 'move';
+                                onSquareClick(squareCoord);
+                            };
+                        }
+
+                        sqEl.appendChild(img);
+                    }
+
+                    // HTML5 Drop Target
+                    sqEl.ondragover = (e) => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                    };
+                    sqEl.ondrop = (e) => {
+                        e.preventDefault();
+                        const from = e.dataTransfer.getData('text/plain');
+                        if (!from || from === squareCoord) return;
+                        const matchingMoves = (gameState.legalMoves || []).filter(m => m.startsWith(from) && m.slice(2, 4) === squareCoord);
+                        if (matchingMoves.length > 0) {
+                            const promo = matchingMoves.find(m => m.length > 4);
+                            if (promo) {
+                                showPromotionModal(from, squareCoord, matchingMoves);
+                            } else {
+                                executeMove(matchingMoves[0]);
+                                selectedSquare = null;
+                                legalTargets = [];
+                            }
+                        }
+                    };
+
+                    // Rank & File coordinate markings
+                    if (col === (isFlipped ? 7 : 0)) {
+                        const rankLabel = document.createElement('span');
+                        rankLabel.className = 'coord coord-rank';
+                        rankLabel.textContent = (8 - row);
+                        sqEl.appendChild(rankLabel);
+                    }
+                    if (row === (isFlipped ? 0 : 7)) {
+                        const fileLabel = document.createElement('span');
+                        fileLabel.className = 'coord coord-file';
+                        fileLabel.textContent = String.fromCharCode('a'.charCodeAt(0) + col);
+                        sqEl.appendChild(fileLabel);
                     }
 
                     sqEl.onclick = () => onSquareClick(squareCoord);
@@ -657,12 +1441,9 @@
 
         function onSquareClick(coord) {
             if (gameState.mate || gameState.stalemate) return;
-
-            // If it's engine's turn and playing vs engine, block human clicks
             if (playAgainstEngine && gameState.side !== playerColor) return;
 
             if (selectedSquare === null) {
-                // Select a piece only if it belongs to current player
                 const piece = getPieceAt(coord);
                 if (piece && piece.color === gameState.side) {
                     selectedSquare = coord;
@@ -671,28 +1452,23 @@
                 }
             } else {
                 if (selectedSquare === coord) {
-                    // Clicked same square: deselect
                     selectedSquare = null;
                     legalTargets = [];
                     renderBoard();
                     return;
                 }
 
-                // Check if target is a legal move
                 const matchingMoves = legalTargets.filter(m => m.slice(2, 4) === coord);
                 if (matchingMoves.length > 0) {
-                    // Check if pawn promotion move
                     const promoMove = matchingMoves.find(m => m.length > 4);
                     if (promoMove) {
                         showPromotionModal(selectedSquare, coord, matchingMoves);
                         return;
                     }
-
                     executeMove(matchingMoves[0]);
                     selectedSquare = null;
                     legalTargets = [];
                 } else {
-                    // Clicked another friendly piece: change selection
                     const piece = getPieceAt(coord);
                     if (piece && piece.color === gameState.side) {
                         selectedSquare = coord;
@@ -721,11 +1497,8 @@
                 if (data.ok && data.state) {
                     gameState = data.state;
                     gameMoves = data.moves || [];
-                    document.getElementById('fen-input').value = gameState.fen;
                     renderBoard();
                     updateMovesBox();
-                } else if (data.error) {
-                    console.error("Move error:", data.error);
                 }
             } catch (e) {
                 console.error("Execute move failed:", e);
@@ -733,8 +1506,9 @@
         }
 
         function showPromotionModal(from, to, promoMoves) {
-            pendingPromotion = { from, to };
+            pendingPromotion = { from, to, promoMoves };
             const modal = document.getElementById('promo-modal');
+            const backdrop = document.getElementById('promo-backdrop');
             const container = document.getElementById('promo-pieces-container');
             container.innerHTML = '';
 
@@ -746,6 +1520,7 @@
                 btn.style.backgroundImage = `url('${getPieceImage(p, color)}')`;
                 btn.onclick = () => {
                     modal.style.display = 'none';
+                    if (backdrop) backdrop.style.display = 'none';
                     const chosen = promoMoves.find(m => m.endsWith(p)) || (from + to + p);
                     executeMove(chosen);
                     pendingPromotion = null;
@@ -756,6 +1531,34 @@
             });
 
             modal.style.display = 'block';
+            if (backdrop) backdrop.style.display = 'block';
+        }
+
+        function cancelPromotion() {
+            const modal = document.getElementById('promo-modal');
+            const backdrop = document.getElementById('promo-backdrop');
+            if (modal) modal.style.display = 'none';
+            if (backdrop) backdrop.style.display = 'none';
+            pendingPromotion = null;
+            selectedSquare = null;
+            legalTargets = [];
+            renderBoard();
+            const board = document.getElementById('board');
+            if (board) board.focus();
+        }
+
+        function checkGameOver() {
+            const banner = document.getElementById('game-status-banner');
+            if (gameState.mate) {
+                const winner = gameState.side === 'w' ? 'Black' : 'White';
+                banner.textContent = `Checkmate! ${winner} Wins.`;
+                banner.style.display = 'block';
+            } else if (gameState.stalemate) {
+                banner.textContent = 'Draw by Stalemate';
+                banner.style.display = 'block';
+            } else {
+                banner.style.display = 'none';
+            }
         }
 
         function updateMovesBox() {
@@ -763,18 +1566,276 @@
             box.innerHTML = '';
 
             for (let i = 0; i < gameMoves.length; i += 2) {
-                const row = document.createElement('div');
-                row.className = 'move-row';
-                row.innerHTML = `
-                    <span class="move-num">${Math.floor(i / 2) + 1}.</span>
-                    <span class="move-white">${gameMoves[i]}</span>
-                    <span class="move-black">${gameMoves[i + 1] || ''}</span>
+                const entry = document.createElement('div');
+                entry.className = `move-entry ${i >= gameMoves.length - 2 ? 'latest' : ''}`;
+                entry.innerHTML = `
+                    <span>${Math.floor(i / 2) + 1}. ${gameMoves[i]}</span>
+                    <span>${gameMoves[i + 1] || ''}</span>
                 `;
-                box.appendChild(row);
+                box.appendChild(entry);
             }
             box.scrollTop = box.scrollHeight;
         }
 
+        // Lichess Evaluation Bar Updates
+        function updateEvalBar(score, type) {
+            let winPercent = 50;
+            if (type === 'mate') {
+                winPercent = score > 0 ? 100 : 0;
+            } else {
+                // Smooth Lichess winning chance sigmoid
+                winPercent = 50 + 50 * (2 / (1 + Math.exp(-0.003682 * score)) - 1);
+            }
+            winPercent = Math.max(3, Math.min(97, winPercent));
+
+            const evalBarEl = document.getElementById('eval-bar');
+            const blackBar = document.getElementById('eval-bar-black');
+            const scoreBadge = document.getElementById('eval-bar-text');
+
+            const blackPercent = 100 - winPercent;
+            blackBar.style.height = `${blackPercent}%`;
+
+            let txt = '';
+            if (type === 'mate') {
+                txt = (score > 0 ? 'M' : '-M') + Math.abs(score);
+            } else {
+                const cpVal = (score / 100).toFixed(1);
+                txt = (score > 0 ? '+' : '') + cpVal;
+            }
+
+            scoreBadge.textContent = txt;
+            document.getElementById('stat-score').textContent = txt;
+
+            // Positioning score badge inside winning territory
+            if (score >= 0) {
+                scoreBadge.className = 'eval-score-badge white-win';
+            } else {
+                scoreBadge.className = 'eval-score-badge black-win';
+            }
+        }
+
+        // MultiPV Rendering
+        function renderMultiPV() {
+            const container = document.getElementById('multipv-container');
+            container.innerHTML = '';
+
+            const keys = Object.keys(multiPVLines).sort((a,b) => parseInt(a, 10) - parseInt(b, 10));
+            for (const k of keys) {
+                const line = multiPVLines[k];
+                const row = document.createElement('div');
+                row.className = `multipv-row ${k === '1' ? 'dominant' : ''}`;
+
+                let scoreClass = 'pos';
+                let scoreText = (line.score / 100).toFixed(2);
+                if (line.scoreType === 'mate') scoreText = (line.score > 0 ? 'M' : '-M') + Math.abs(line.score);
+                else if (line.score > 0) scoreText = '+' + scoreText;
+                else if (line.score < 0) scoreClass = 'neg';
+
+                const moves = line.pv ? line.pv.split(' ').slice(0, 8).join(' ') : '';
+
+                row.innerHTML = `
+                    <div class="multipv-main">
+                        <div class="multipv-left">
+                            <span class="rank-chip">${k}</span>
+                            <span>${moves.split(' ')[0] || ''}</span>
+                        </div>
+                        <span class="score-pill ${scoreClass}">${scoreText}</span>
+                    </div>
+                    <div class="pv-full-moves">${moves}</div>
+                `;
+                container.appendChild(row);
+            }
+        }
+
+        // SVG Nen Hexagon Radar & Sliders
+        function updateRadarUI() {
+            const cx = 130, cy = 130, maxR = 92;
+            const degToRad = Math.PI / 180;
+
+            // Vertices order (Clockwise from top):
+            // 0: Calculation (Top: -90 deg) -> Blue #3B82F6 (Enhancement / 強化)
+            // 1: Aggression (Top-Right: -30 deg) -> Purple #9B5CFF (Transmutation / 変化)
+            // 2: Structure (Bottom-Right: 30 deg) -> Amber #F59E0B (Conjuration / 具現化)
+            // 3: Creativity (Bottom: 90 deg) -> Cyan #06B6D4 (Specialization / 特質)
+            // 4: Prophylaxis (Bottom-Left: 150 deg) -> Green #10B981 (Manipulation / 操作)
+            // 5: Activity (Top-Left: 210 deg) -> Red #EF4444 (Emission / 放出)
+            const angles = [-90, -30, 30, 90, 150, 210];
+            const ids = [
+                'calculation',
+                'aggression',
+                'structure',
+                'creativity',
+                'prophylaxis',
+                'activity'
+            ];
+            const affinityColors = ['#3B82F6', '#9B5CFF', '#F59E0B', '#06B6D4', '#10B981', '#EF4444'];
+            const affinityKanji = ['強化', '変化', '具現化', '特質', '操作', '放出'];
+            const affinityRomaji = ['Enhancement', 'Transmutation', 'Conjuration', 'Specialization', 'Manipulation', 'Emission'];
+
+            const vals = ids.map(id => styleProfile[id] !== undefined ? styleProfile[id] : 50);
+
+            const points = [];
+            for (let i = 0; i < 6; i++) {
+                const r = (vals[i] / 100) * maxR;
+                const rad = angles[i] * degToRad;
+                const x = cx + r * Math.cos(rad);
+                const y = cy + r * Math.sin(rad);
+                points.push(`${x.toFixed(1)},${y.toFixed(1)}`);
+
+                // Update vertex dot
+                const dot = document.getElementById(`dot-${ids[i]}`);
+                if (dot) {
+                    dot.setAttribute('cx', x.toFixed(1));
+                    dot.setAttribute('cy', y.toFixed(1));
+                }
+
+                // Update slider and label
+                const slider = document.getElementById(`slider-${ids[i]}`);
+                const label = document.getElementById(`val-${ids[i]}`);
+                if (slider) slider.value = vals[i];
+                if (label) label.textContent = `${vals[i]}%`;
+            }
+
+            // Dominant Affinity Styling
+            const maxVal = Math.max(...vals);
+            const maxIdx = vals.indexOf(maxVal);
+            const dominantColor = affinityColors[maxIdx];
+
+            const poly = document.getElementById('radar-val-poly');
+            if (poly) {
+                poly.setAttribute('points', points.join(' '));
+                poly.setAttribute('stroke', dominantColor);
+            }
+
+            const stop0 = document.getElementById('hex-grad-stop0');
+            const stop1 = document.getElementById('hex-grad-stop1');
+            if (stop0) stop0.setAttribute('stop-color', dominantColor);
+            if (stop1) stop1.setAttribute('stop-color', dominantColor);
+
+            const aura = document.getElementById('nen-aura');
+            if (aura) {
+                aura.style.background = `radial-gradient(circle, ${dominantColor} 0%, transparent 70%)`;
+            }
+
+            const subtitle = document.getElementById('nen-persona-subtitle');
+            if (subtitle) {
+                if (currentPreset && currentPreset !== 'Custom') {
+                    subtitle.textContent = `${currentPreset} Nen · ${affinityKanji[maxIdx]} (${affinityRomaji[maxIdx]})`;
+                } else {
+                    subtitle.textContent = `Custom Persona · ${affinityKanji[maxIdx]} (${affinityRomaji[maxIdx]})`;
+                }
+            }
+        }
+
+        let styleDebounceTimer = null;
+        function onStyleSliderInput(trait, val) {
+            styleProfile[trait] = parseInt(val, 10);
+            updateRadarUI();
+            highlightActivePreset('Custom');
+
+            if (styleDebounceTimer) clearTimeout(styleDebounceTimer);
+            styleDebounceTimer = setTimeout(async () => {
+                try {
+                    await fetch('/api/style', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ [trait]: styleProfile[trait], preset: 'Custom' })
+                    });
+                } catch (e) {
+                    console.error("Failed to update style trait:", e);
+                }
+            }, 250);
+        }
+
+        async function applyPreset(name) {
+            if (!PRESETS[name]) return;
+            styleProfile = { ...PRESETS[name] };
+            currentPreset = name;
+            updateRadarUI();
+            highlightActivePreset(name);
+
+            try {
+                await fetch('/api/style', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...styleProfile, preset: name })
+                });
+            } catch (e) {
+                console.error("Failed to apply preset:", e);
+            }
+        }
+
+        function highlightActivePreset(name) {
+            document.querySelectorAll('.preset-chip').forEach(chip => {
+                if (chip.textContent.trim().toLowerCase().includes(name.toLowerCase())) {
+                    chip.classList.add('active');
+                } else {
+                    chip.classList.remove('active');
+                }
+            });
+        }
+
+        function resetStyleProfile() {
+            applyPreset('Balanced');
+        }
+
+        // Evaluation Engine & Settings Handlers
+        let currentUseNNUE = false;
+
+        function updateNNUESegmented(useNNUE) {
+            currentUseNNUE = !!useNNUE;
+            const btnPesto = document.getElementById('btn-eval-pesto');
+            const btnNNUE = document.getElementById('btn-eval-nnue');
+            if (btnPesto && btnNNUE) {
+                btnPesto.classList.toggle('active', !currentUseNNUE);
+                btnNNUE.classList.toggle('active', currentUseNNUE);
+            }
+        }
+
+        async function setEvalEngine(useNNUE) {
+            updateNNUESegmented(useNNUE);
+            try {
+                await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ useNNUE: !!useNNUE })
+                });
+            } catch (e) {
+                console.error("Failed to update evaluation engine:", e);
+            }
+        }
+
+        async function loadCustomFEN() {
+            const input = document.getElementById('custom-fen-input');
+            const fen = input ? input.value.trim() : '';
+            if (!fen) return;
+            try {
+                const res = await fetch('/api/fen', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fen })
+                });
+                const data = await res.json();
+                if (data.ok && data.state) {
+                    gameState = data.state;
+                    gameMoves = data.moves || [];
+                    selectedSquare = null;
+                    legalTargets = [];
+                    lastMove = null;
+                    multiPVLines = {};
+                    document.getElementById('multipv-container').innerHTML = '';
+                    renderBoard();
+                    updateMovesBox();
+                    input.value = '';
+                } else {
+                    alert("Invalid FEN: " + (data.error || "failed to load"));
+                }
+            } catch (e) {
+                console.error("Failed to load custom FEN:", e);
+            }
+        }
+
+        // Action Handlers
         async function newGame() {
             try {
                 selectedSquare = null;
@@ -783,6 +1844,8 @@
                 multiPVLines = {};
                 document.getElementById('multipv-container').innerHTML = '';
                 document.getElementById('promo-modal').style.display = 'none';
+                const backdrop = document.getElementById('promo-backdrop');
+                if (backdrop) backdrop.style.display = 'none';
                 document.getElementById('game-status-banner').style.display = 'none';
 
                 const res = await fetch('/api/newgame', { method: 'POST' });
@@ -790,7 +1853,6 @@
                 if (data.ok && data.state) {
                     gameState = data.state;
                     gameMoves = data.moves || [];
-                    document.getElementById('fen-input').value = gameState.fen;
                     renderBoard();
                     updateMovesBox();
                 }
@@ -799,20 +1861,23 @@
             }
         }
 
+        function flipBoard() {
+            isFlipped = !isFlipped;
+            const evalBar = document.getElementById('eval-bar');
+            if (isFlipped) evalBar.classList.add('flipped');
+            else evalBar.classList.remove('flipped');
+            renderBoard();
+        }
+
         async function undoMove() {
             try {
-                selectedSquare = null;
-                legalTargets = [];
                 const res = await fetch('/api/undo', { method: 'POST' });
                 const data = await res.json();
                 if (data.ok && data.state) {
                     gameState = data.state;
                     gameMoves = data.moves || [];
-                    lastMove = gameMoves.length > 0 ? {
-                        from: gameMoves[gameMoves.length - 1].slice(0, 2),
-                        to: gameMoves[gameMoves.length - 1].slice(2, 4)
-                    } : null;
-                    document.getElementById('fen-input').value = gameState.fen;
+                    selectedSquare = null;
+                    legalTargets = [];
                     renderBoard();
                     updateMovesBox();
                 }
@@ -821,24 +1886,20 @@
             }
         }
 
-        async function flipBoard() {
-            isFlipped = !isFlipped;
-            playerColor = isFlipped ? 'b' : 'w';
-            renderBoard();
-
-            await fetch('/api/settings', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ playerColor })
-            });
+        function copyFEN() {
+            navigator.clipboard.writeText(gameState.fen);
         }
 
         async function toggleEnginePlay() {
             playAgainstEngine = !playAgainstEngine;
             const btn = document.getElementById('btn-toggle-engine');
-            btn.textContent = playAgainstEngine ? "Play Engine: ON" : "Play Engine: OFF";
-            btn.className = playAgainstEngine ? "primary active" : "";
-
+            if (playAgainstEngine) {
+                btn.className = 'primary';
+                btn.textContent = 'Play Engine: ON';
+            } else {
+                btn.className = '';
+                btn.textContent = 'Play Engine: OFF';
+            }
             await fetch('/api/settings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -846,188 +1907,89 @@
             });
         }
 
-        async function changeEvalMode(val) {
-            const isNNUE = (val === 'nnue');
-            await sendUciCommand(`setoption name UseNNUE value ${isNNUE}`);
-            document.getElementById('engine-name-badge').textContent = isNNUE ? "Simple768 NNUE" : "Classical PeSTO Engine";
-            sendUciCommand('go depth 8');
-        }
-
-        async function changeMultiPV(val) {
-            await sendUciCommand(`setoption name MultiPV value ${val}`);
-            sendUciCommand('go depth 8');
-        }
-
-        async function loadCustomFen(fen) {
-            if (!fen.trim()) return;
-            try {
-                const res = await fetch('/api/fen', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ fen: fen.trim() })
-                });
-                const data = await res.json();
-                if (data.ok && data.state) {
-                    gameState = data.state;
-                    gameMoves = [];
-                    lastMove = null;
-                    selectedSquare = null;
-                    legalTargets = [];
-                    renderBoard();
-                    updateMovesBox();
-                    sendUciCommand('go depth 8');
-                } else {
-                    alert("Engine rejected FEN: " + (data.error || "Invalid position"));
+        // Keyboard Shortcuts
+        window.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            const k = e.key.toLowerCase();
+            if (e.key === 'Escape') {
+                const modal = document.getElementById('promo-modal');
+                if (modal && modal.style.display === 'block') {
+                    cancelPromotion();
+                    return;
                 }
-            } catch (e) {
-                console.error("Load custom FEN error:", e);
             }
-        }
-
-        function checkGameOver() {
-            const banner = document.getElementById('game-status-banner');
-            if (gameState.mate) {
-                const winner = (gameState.side === 'w') ? 'Black' : 'White';
-                banner.className = `game-status-banner ${winner === (playerColor === 'w' ? 'White' : 'Black') ? 'banner-win' : 'banner-loss'}`;
-                banner.textContent = `🏆 Checkmate! ${winner} wins.`;
-                banner.style.display = 'block';
-            } else if (gameState.stalemate) {
-                banner.className = 'game-status-banner banner-draw';
-                banner.textContent = `🤝 Game Drawn by Stalemate.`;
-                banner.style.display = 'block';
-            } else if (gameState.halfmove >= 100) {
-                banner.className = 'game-status-banner banner-draw';
-                banner.textContent = `🤝 Game Drawn by 50-move Rule.`;
-                banner.style.display = 'block';
-            } else {
-                banner.style.display = 'none';
+            if (k === 'f') flipBoard();
+            else if (k === 'u') undoMove();
+            else if (k === 'n') newGame();
+            else if (e.code === 'Space') {
+                e.preventDefault();
+                toggleEnginePlay();
             }
-        }
+        });
 
-        async function sendUciCommand(cmd) {
-            try {
-                await fetch('/api/cmd', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ cmd })
-                });
-            } catch (e) {
-                console.error("Failed to send command:", e);
-            }
-        }
-
-        // Server-Sent Events (SSE) listener
+        // SSE Connection
         const sse = new EventSource('/api/stream');
         sse.onmessage = (event) => {
             const data = JSON.parse(event.data);
-
-            if (data.type === 'state' && data.state) {
+            if (data.type === 'state') {
                 gameState = data.state;
-                if (data.moves) {
-                    gameMoves = data.moves;
-                    if (gameMoves.length > 0) {
-                        const last = gameMoves[gameMoves.length - 1];
-                        lastMove = { from: last.slice(0, 2), to: last.slice(2, 4) };
-                    } else {
-                        lastMove = null;
-                    }
+                gameMoves = data.moves || [];
+                if (data.defaultOptions && data.defaultOptions.useNNUE !== undefined) {
+                    updateNNUESegmented(data.defaultOptions.useNNUE);
                 }
-                if (data.playSettings) {
-                    playAgainstEngine = data.playSettings.playAgainstEngine;
-                    playerColor = data.playSettings.playerColor;
+                const prof = (data.style && data.style.profile) || (data.nen && data.nen.profile);
+                if (prof) {
+                    styleProfile = prof;
+                    currentPreset = (data.style && data.style.preset) || (data.nen && data.nen.preset) || 'Balanced';
+                    updateRadarUI();
+                    highlightActivePreset(currentPreset);
                 }
-                document.getElementById('fen-input').value = gameState.fen;
                 renderBoard();
                 updateMovesBox();
-            }
-            else if (data.type === 'info' && data.info) {
+            } else if (data.type === 'options' || data.type === 'settings') {
+                if (data.defaultOptions && data.defaultOptions.useNNUE !== undefined) {
+                    updateNNUESegmented(data.defaultOptions.useNNUE);
+                }
+            } else if (data.type === 'lines_reset') {
+                multiPVLines = {};
+                document.getElementById('multipv-container').innerHTML = '';
+            } else if (data.type === 'info') {
+                document.getElementById('engine-status-tag').textContent = "SEARCHING";
+                document.getElementById('engine-status-tag').style.color = "var(--accent-text)";
                 const info = data.info;
                 if (info.depth) document.getElementById('stat-depth').textContent = info.depth;
-                if (info.nodes) document.getElementById('stat-nodes').textContent = info.nodes.toLocaleString();
-                if (info.nps) document.getElementById('stat-nps').textContent = (info.nps / 1000).toFixed(0) + 'k';
-
-                if (info.score !== undefined) {
-                    let scoreTxt = (info.score / 100).toFixed(2);
-                    if (info.scoreType === 'mate') scoreTxt = 'M' + info.score;
-                    else if (info.score > 0) scoreTxt = '+' + scoreTxt;
-                    document.getElementById('stat-score').textContent = scoreTxt;
-                    updateEvalBar(info.score, info.scoreType);
-                }
+                if (info.nodes) document.getElementById('stat-nodes').textContent = (info.nodes > 1000000 ? (info.nodes/1000000).toFixed(2) + 'M' : info.nodes);
+                if (info.nps) document.getElementById('stat-nps').textContent = (info.nps > 1000000 ? (info.nps/1000000).toFixed(1) + 'M' : (info.nps/1000).toFixed(0) + 'k');
 
                 if (info.multipv !== undefined) {
                     multiPVLines[info.multipv] = info;
                     renderMultiPV();
                 }
-            }
-            else if (data.type === 'bestmove') {
-                document.getElementById('engine-status-tag').textContent = "Ready";
-                document.getElementById('engine-status-tag').style.color = "#8edc75";
+
+                if (info.score !== undefined && (info.multipv === undefined || info.multipv === 1)) {
+                    // Filter out volatile sub-millisecond shallow depths (< 6) to prevent eval bar twitching
+                    if (!info.depth || info.depth >= 6) {
+                        updateEvalBar(info.score, info.scoreType);
+                    }
+                }
+            } else if (data.type === 'bestmove') {
+                document.getElementById('engine-status-tag').textContent = "READY";
+                document.getElementById('engine-status-tag').style.color = "var(--accent-text)";
+                // Ensure latest authoritative score is locked in
+                if (multiPVLines['1'] && multiPVLines['1'].score !== undefined) {
+                    updateEvalBar(multiPVLines['1'].score, multiPVLines['1'].scoreType);
+                }
+            } else if (data.type === 'style' || data.type === 'nen') {
+                styleProfile = data.profile;
+                currentPreset = data.preset;
+                updateRadarUI();
+                highlightActivePreset(currentPreset);
             }
         };
 
-        function updateEvalBar(score, type) {
-            let winPercent = 50;
-            if (type === 'mate') {
-                winPercent = score > 0 ? 100 : 0;
-            } else {
-                winPercent = 100 / (1 + Math.pow(10, -score / 400));
-            }
-            winPercent = Math.max(4, Math.min(96, winPercent));
-            const blackPercent = 100 - winPercent;
-
-            document.getElementById('eval-bar-black').style.height = `${blackPercent}%`;
-            let txt = (score / 100).toFixed(1);
-            if (type === 'mate') txt = 'M' + score;
-            else if (score > 0) txt = '+' + txt;
-            document.getElementById('eval-bar-text').textContent = txt;
-        }
-
-        function renderMultiPV() {
-            const container = document.getElementById('multipv-container');
-            container.innerHTML = '';
-
-            const keys = Object.keys(multiPVLines).sort((a,b) => parseInt(a, 10) - parseInt(b, 10));
-            for (const k of keys) {
-                const line = multiPVLines[k];
-                const item = document.createElement('div');
-                item.className = `multipv-item ${k === '1' ? 'top' : ''}`;
-
-                let scoreClass = 'score-even';
-                let scoreTxt = '+0.00';
-                if (line.score > 15) scoreClass = 'score-pos';
-                else if (line.score < -15) scoreClass = 'score-neg';
-
-                if (line.score !== undefined) {
-                    scoreTxt = (line.score / 100).toFixed(2);
-                    if (line.scoreType === 'mate') scoreTxt = 'M' + line.score;
-                    else if (line.score > 0) scoreTxt = '+' + scoreTxt;
-                }
-
-                item.innerHTML = `
-                    <div class="multipv-header">
-                        <span style="font-weight: 700;">Line ${k} (d${line.depth || 0})</span>
-                        <span class="score-pill ${scoreClass}">${scoreTxt}</span>
-                    </div>
-                    <div class="pv-moves">${line.pv || ''}</div>
-                `;
-                container.appendChild(item);
-            }
-        }
-
-        // Initial state fetch
-        fetch('/api/state').then(r => r.json()).then(data => {
-            if (data.state) {
-                gameState = data.state;
-                gameMoves = data.moves || [];
-                if (data.playSettings) {
-                    playAgainstEngine = data.playSettings.playAgainstEngine;
-                    playerColor = data.playSettings.playerColor;
-                }
-                document.getElementById('fen-input').value = gameState.fen;
-                renderBoard();
-                updateMovesBox();
-            }
-        }).catch(console.error);
+        // Initial Load
+        renderBoard();
+        updateRadarUI();
     </script>
 </body>
 </html>

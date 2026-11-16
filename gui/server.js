@@ -29,6 +29,42 @@ let playSettings = {
     thinkTime: 500
 };
 
+let pendingEngineMove = false;
+let pendingStyleUpdates = null;
+let styleDebounceTimer = null;
+
+const defaultOptions = {
+    useNNUE: false,
+    multiPV: 3,
+    hash: 16
+};
+
+let styleProfile = {
+    calculation: 50,
+    aggression: 50,
+    structure: 50,
+    creativity: 50,
+    prophylaxis: 50,
+    activity: 50,
+    enhancement: 50,
+    transmutation: 50,
+    conjuration: 50,
+    specialization: 50,
+    manipulation: 50,
+    emission: 50
+};
+let currentPreset = 'Balanced';
+
+const PRESETS = {
+    'Tal': { calculation: 68, aggression: 70, structure: 40, creativity: 56, prophylaxis: 58, activity: 62 },
+    'Petrosian': { calculation: 25, aggression: 61, structure: 59, creativity: 61, prophylaxis: 76, activity: 79 },
+    'Karpov': { calculation: 28, aggression: 79, structure: 30, creativity: 95, prophylaxis: 81, activity: 25 },
+    'Morphy': { calculation: 95, aggression: 95, structure: 39, creativity: 25, prophylaxis: 25, activity: 67 },
+    'Kasparov': { calculation: 50, aggression: 54, structure: 25, creativity: 85, prophylaxis: 76, activity: 90 },
+    'Carlsen': { calculation: 66, aggression: 25, structure: 95, creativity: 75, prophylaxis: 95, activity: 95 },
+    'Balanced': { calculation: 50, aggression: 50, structure: 50, creativity: 50, prophylaxis: 50, activity: 50 }
+};
+
 let engineStatus = {
     connected: false,
     searching: false,
@@ -108,8 +144,9 @@ function startEngine() {
     });
 
     sendUciCommand('uci');
-    sendUciCommand('setoption name UseNNUE value false');
-    sendUciCommand('setoption name MultiPV value 3');
+    sendUciCommand(`setoption name UseNNUE value ${defaultOptions.useNNUE}`);
+    sendUciCommand(`setoption name MultiPV value ${defaultOptions.multiPV}`);
+    sendUciCommand(`setoption name Hash value ${defaultOptions.hash}`);
     sendUciCommand('isready');
     sendUciCommand('ucinewgame');
     syncEnginePosition();
@@ -150,6 +187,10 @@ function parseUciLine(line) {
     else if (line.startsWith('state ')) {
         parseStateLine(line);
     }
+    else if (line.startsWith('info string Style options active, NNUE disabled')) {
+        defaultOptions.useNNUE = false;
+        broadcastSSE({ type: 'options', defaultOptions });
+    }
     else if (line.startsWith('info ')) {
         engineStatus.searching = true;
         const infoObj = parseInfoLine(line);
@@ -166,10 +207,24 @@ function parseUciLine(line) {
         broadcastSSE({ type: 'bestmove', move: bestMove, raw: line });
 
         // If playing against engine and it was engine's turn to play:
-        if (playSettings.playAgainstEngine && bestMove && bestMove !== '(none)' && gameState.side !== playSettings.playerColor) {
-            if (!gameState.mate && !gameState.stalemate) {
-                gameMoves.push(bestMove);
-                syncEnginePosition();
+        if (pendingEngineMove) {
+            pendingEngineMove = false;
+            if (playSettings.playAgainstEngine && bestMove && bestMove !== '(none)' && gameState.side !== playSettings.playerColor) {
+                if (!gameState.mate && !gameState.stalemate) {
+                    if (gameState.legalMoves && gameState.legalMoves.includes(bestMove)) {
+                        gameMoves.push(bestMove);
+                        const waitPromise = waitForState();
+                        syncEnginePosition();
+                        waitPromise.then((newState) => {
+                            if (!newState.mate && !newState.stalemate) {
+                                setTimeout(() => triggerLiveAnalysis(), 50);
+                            }
+                        });
+                    } else {
+                        console.warn(`[Engine] Illegal or stale move '${bestMove}' dropped; re-syncing position`);
+                        syncEnginePosition();
+                    }
+                }
             }
         }
     }
@@ -241,7 +296,13 @@ function parseInfoLine(line) {
         else if (t === 'time' && i + 1 < tokens.length) res.time = parseInt(tokens[++i], 10);
         else if (t === 'score' && i + 2 < tokens.length) {
             res.scoreType = tokens[++i]; // 'cp' or 'mate'
-            res.score = parseInt(tokens[++i], 10);
+            let scoreVal = parseInt(tokens[++i], 10);
+            res.rawScore = scoreVal;
+            // Normalize to White's perspective if searching on Black's turn
+            if (gameState.side === 'b') {
+                scoreVal = -scoreVal;
+            }
+            res.score = scoreVal;
         }
         else if (t === 'pv') {
             res.pv = tokens.slice(i + 1).join(' ');
@@ -253,7 +314,18 @@ function parseInfoLine(line) {
 
 function triggerEngineThink() {
     if (gameState.mate || gameState.stalemate) return;
+    pendingEngineMove = true;
+    engineStatus.multipvLines = {};
+    broadcastSSE({ type: 'lines_reset' });
     sendUciCommand(`go movetime ${playSettings.thinkTime || 500}`);
+}
+
+function triggerLiveAnalysis() {
+    if (gameState.mate || gameState.stalemate) return;
+    pendingEngineMove = false;
+    engineStatus.multipvLines = {};
+    broadcastSSE({ type: 'lines_reset' });
+    sendUciCommand('go depth 10');
 }
 
 const server = http.createServer(async (req, res) => {
@@ -313,7 +385,10 @@ const server = http.createServer(async (req, res) => {
             type: 'state',
             state: gameState,
             moves: gameMoves,
-            playSettings
+            playSettings,
+            defaultOptions,
+            style: { profile: styleProfile, preset: currentPreset },
+            nen: { profile: styleProfile, preset: currentPreset }
         })}\n\n`);
 
         req.on('close', () => {
@@ -328,8 +403,126 @@ const server = http.createServer(async (req, res) => {
             state: gameState,
             moves: gameMoves,
             playSettings,
+            defaultOptions,
+            style: { profile: styleProfile, preset: currentPreset },
+            nen: { profile: styleProfile, preset: currentPreset },
             engineStatus
         }));
+        return;
+    }
+
+    if ((url.pathname === '/api/style' || url.pathname === '/api/nen') && req.method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+            profile: styleProfile,
+            preset: currentPreset,
+            defaultOptions
+        }));
+        return;
+    }
+
+    if ((url.pathname === '/api/style' || url.pathname === '/api/nen') && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', () => {
+            try {
+                const parsed = JSON.parse(body);
+                if (parsed.preset) currentPreset = parsed.preset;
+
+                // Sync default trait values if preset specified without explicit traits
+                if (parsed.preset && PRESETS[parsed.preset]) {
+                    const p = PRESETS[parsed.preset];
+                    for (const [k, v] of Object.entries(p)) {
+                        if (parsed[k] === undefined) {
+                            parsed[k] = v;
+                        }
+                    }
+                }
+
+                if (!pendingStyleUpdates) pendingStyleUpdates = {};
+                if (parsed.preset) pendingStyleUpdates.preset = parsed.preset;
+                
+                const traitMap = {
+                    'calculation': 'Calculation',
+                    'enhancement': 'Calculation',
+                    'aggression': 'Aggression',
+                    'transmutation': 'Aggression',
+                    'structure': 'Structure',
+                    'conjuration': 'Structure',
+                    'creativity': 'Creativity',
+                    'specialization': 'Creativity',
+                    'prophylaxis': 'Prophylaxis',
+                    'manipulation': 'Prophylaxis',
+                    'activity': 'Activity',
+                    'emission': 'Activity'
+                };
+
+                for (const [key, uciName] of Object.entries(traitMap)) {
+                    if (parsed[key] !== undefined) {
+                        const val = Math.max(0, Math.min(100, parseInt(parsed[key], 10)));
+                        styleProfile[key] = val;
+                        pendingStyleUpdates[key] = val;
+
+                        // Also sync pair alias
+                        if (key === 'calculation') styleProfile.enhancement = val;
+                        else if (key === 'enhancement') styleProfile.calculation = val;
+                        else if (key === 'aggression') styleProfile.transmutation = val;
+                        else if (key === 'transmutation') styleProfile.aggression = val;
+                        else if (key === 'structure') styleProfile.conjuration = val;
+                        else if (key === 'conjuration') styleProfile.structure = val;
+                        else if (key === 'creativity') styleProfile.specialization = val;
+                        else if (key === 'specialization') styleProfile.creativity = val;
+                        else if (key === 'prophylaxis') styleProfile.manipulation = val;
+                        else if (key === 'manipulation') styleProfile.prophylaxis = val;
+                        else if (key === 'activity') styleProfile.emission = val;
+                        else if (key === 'emission') styleProfile.activity = val;
+                    }
+                }
+
+                // If engine is actively searching, stop it before queueing changes
+                if (engineStatus.searching) {
+                    sendUciCommand('stop');
+                }
+
+                // Coalesce in-flight requests and debounce by 250ms
+                if (styleDebounceTimer) clearTimeout(styleDebounceTimer);
+                styleDebounceTimer = setTimeout(() => {
+                    if (!pendingStyleUpdates) return;
+                    const updates = pendingStyleUpdates;
+                    pendingStyleUpdates = null;
+
+                    if (engineStatus.searching) {
+                        sendUciCommand('stop');
+                    }
+
+                    for (const [key, uciName] of Object.entries(traitMap)) {
+                        if (updates[key] !== undefined) {
+                            sendUciCommand(`setoption name Style_${uciName} value ${updates[key]}`);
+                        }
+                    }
+
+                    if (updates.preset && updates.preset !== 'Custom') {
+                        sendUciCommand(`setoption name Style_Preset value ${updates.preset}`);
+                    }
+
+                    if (!gameState.mate && !gameState.stalemate) {
+                        setTimeout(() => triggerLiveAnalysis(), 50);
+                    }
+                }, 250);
+
+                broadcastSSE({
+                    type: 'style',
+                    profile: styleProfile,
+                    preset: currentPreset
+                });
+
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ ok: true, profile: styleProfile, preset: currentPreset }));
+            } catch (e) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: e.message }));
+            }
+        });
         return;
     }
 
@@ -363,6 +556,8 @@ const server = http.createServer(async (req, res) => {
                 // If playing against engine and it's engine's turn:
                 if (playSettings.playAgainstEngine && newState.side !== playSettings.playerColor && !newState.mate && !newState.stalemate) {
                     setTimeout(() => triggerEngineThink(), 50);
+                } else if (!newState.mate && !newState.stalemate) {
+                    setTimeout(() => triggerLiveAnalysis(), 50);
                 }
             } catch (e) {
                 res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -387,6 +582,8 @@ const server = http.createServer(async (req, res) => {
 
         if (playSettings.playAgainstEngine && playSettings.playerColor === 'b') {
             setTimeout(() => triggerEngineThink(), 50);
+        } else {
+            setTimeout(() => triggerLiveAnalysis(), 50);
         }
         return;
     }
@@ -407,6 +604,12 @@ const server = http.createServer(async (req, res) => {
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true, state: newState, moves: gameMoves }));
+
+        if (playSettings.playAgainstEngine && newState.side !== playSettings.playerColor && !newState.mate && !newState.stalemate) {
+            setTimeout(() => triggerEngineThink(), 50);
+        } else if (!newState.mate && !newState.stalemate) {
+            setTimeout(() => triggerLiveAnalysis(), 50);
+        }
         return;
     }
 
@@ -449,10 +652,14 @@ const server = http.createServer(async (req, res) => {
                 if (parsed.playAgainstEngine !== undefined) playSettings.playAgainstEngine = parsed.playAgainstEngine;
                 if (parsed.playerColor !== undefined) playSettings.playerColor = parsed.playerColor;
                 if (parsed.thinkTime !== undefined) playSettings.thinkTime = parseInt(parsed.thinkTime, 10);
+                if (parsed.useNNUE !== undefined) {
+                    defaultOptions.useNNUE = !!parsed.useNNUE;
+                    sendUciCommand(`setoption name UseNNUE value ${defaultOptions.useNNUE}`);
+                }
 
-                broadcastSSE({ type: 'settings', playSettings });
+                broadcastSSE({ type: 'settings', playSettings, defaultOptions });
                 res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ ok: true, playSettings }));
+                res.end(JSON.stringify({ ok: true, playSettings, defaultOptions }));
 
                 if (playSettings.playAgainstEngine && gameState.side !== playSettings.playerColor && !gameState.mate && !gameState.stalemate) {
                     triggerEngineThink();
@@ -495,7 +702,7 @@ startEngine();
 
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`===============================================`);
-    console.log(`♟️  TanmayChess Server Running! (100% C++ Engine)`);
+    console.log(`♟️  Chess Engine Server Running! (100% C++ Engine)`);
     console.log(`🌐  Open in browser: http://localhost:${PORT}`);
     console.log(`===============================================`);
 });

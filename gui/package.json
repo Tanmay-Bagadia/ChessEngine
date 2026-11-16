@@ -1,7 +1,7 @@
 {
-  "name": "tanmaychess-gui",
+  "name": "chess-engine-gui",
   "version": "2.0.0",
-  "description": "Web GUI for TanmayChess chess engine",
+  "description": "Web GUI for Chess Engine",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

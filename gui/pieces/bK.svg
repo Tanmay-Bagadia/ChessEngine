@@ -1,52 +1,12 @@
-<!DOCTYPE html>
-<html lang="en">
-<meta charset="utf-8">
-<title>Wikimedia Error</title>
-<style>
-* { margin: 0; padding: 0; }
-body { display: flex; flex-direction: column; min-height: 100vh; background: #fff; font: 14px/22px system-ui, -apple-system, 'Segoe UI', Roboto, Lato, Helvetica, Arial, sans-serif; color: #202122; }
-.content { box-sizing: border-box; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 32px; margin: 0 auto; padding: 32px; max-width: 640px; text-align: center; }
-.footer { border-top: 1px solid #eaecf0; background: #f8f9fa; padding: 2em 1em; font-size: 12px; text-align: center; }
-#logo { display: block; }
-a img { border: 0; }
-.content-text { display: flex; flex-direction: column; gap: 8px; }
-h1 { font-size: 18px; line-height: 28px; font-weight: bold; }
-a { color: #36c; text-decoration: none; }
-a:hover { text-decoration: underline; }
-code { font-family: inherit; }
-summary { font-weight: bold; cursor: pointer; }
-details[open] { background: #970302; color: #dfdedd; }
-.text-muted { color: #777; }
-.external { display: inline-flex; align-items: center; gap: 4px; }
-.external svg { width: 14px; height: 14px; fill: currentColor; }
-@media (prefers-color-scheme: dark) {
-  body { background: #101418; color: #eaecf0; }
-  a { color: #88a3e8; }
-  .footer { border-top: 1px solid #54595d; background: #202122; }
-    #logo[src$="-logo.svg"], #wmfLogo { filter: invert(1) hue-rotate(180deg); }
-  .text-muted { color: #888; }
-}
-</style>
-<meta name="color-scheme" content="light dark">
-<div class="content" role="main">
-<a href="https://www.wikimedia.org"><img id="logo" src="https://www.wikimedia.org/static/images/footer/wikimedia.svg" alt="Wikimedia" width="120" height="120">
-</a>
-<script>
-if ( /(^|\.)wikipedia\.org$/.test( location.hostname ) ) {
-	document.getElementById( 'logo' ).outerHTML = '<picture>' +
-		'<source media="(max-width: 639px)" srcset="https://www.wikimedia.org/static/images/errorpages/baby-globe-phone-250px.png">' +
-		'<img id="logo" src="https://www.wikimedia.org/static/images/errorpages/baby-globe-laptop-250px.png" alt="Wikipedia" width="120" height="120">' +
-		'</picture>';
-}
-</script>
-<div class="content-text">
-<h1>Error</h1>
-
-<p>Please set a proper user-agent and respect our robot policy https://w.wiki/4wJS. See also https://phabricator.wikimedia.org/T400119</p>
-</div>
-<a class="external" href="https://www.wikimediastatus.net/">Wikimedia Status <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M17 17H3V3h5V1H3a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-5h-2z"/><path d="M11 1l3.29 3.29-5.73 5.73 1.42 1.42 5.73-5.72L19 9V1z"/></svg></a>
-<a href="https://wikimediafoundation.org/"><img id="wmfLogo" src="https://www.wikimedia.org/static/images/wmf.png" srcset="https://www.wikimedia.org/static/images/wmf-2x.png 2x" alt="Wikimedia Foundation" width="86" height="86"></a>
-</div>
-<div class="footer"><p>If you report this error to the Wikimedia System Administrators, please include the details below.</p><p class="text-muted"><code>Request served via cp5032 cp5032, Varnish XID 17581948<br>Upstream caches: cp5032 int<br>Error: 429, Please set a proper user-agent and respect our robot policy https://w.wiki/4wJS. See also https://phabricator.wikimedia.org/T400119 at Sat, 14 Nov 2026 10:10:22 GMT<br><details><summary>Sensitive client information</summary>IP address: 165.101.246.252</details></code></p>
-</div>
-</html>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="45" height="45">
+  <g style="fill:none; fill-opacity:1; fill-rule:evenodd; stroke:#000000; stroke-width:1.5; stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4; stroke-dasharray:none; stroke-opacity:1;">
+    <path d="M 22.5,11.63 L 22.5,6" style="fill:none; stroke:#000000; stroke-linejoin:miter;" id="path6570"/>
+    <path d="M 22.5,25 C 22.5,25 27,17.5 25.5,14.5 C 25.5,14.5 24.5,12 22.5,12 C 20.5,12 19.5,14.5 19.5,14.5 C 18,17.5 22.5,25 22.5,25" style="fill:#000000;fill-opacity:1; stroke-linecap:butt; stroke-linejoin:miter;"/>
+    <path d="M 12.5,37 C 18,40.5 27,40.5 32.5,37 L 32.5,30 C 32.5,30 41.5,25.5 38.5,19.5 C 34.5,13 25,16 22.5,23.5 L 22.5,27 L 22.5,23.5 C 20,16 10.5,13 6.5,19.5 C 3.5,25.5 12.5,30 12.5,30 L 12.5,37" style="fill:#000000; stroke:#000000;"/>
+    <path d="M 20,8 L 25,8" style="fill:none; stroke:#000000; stroke-linejoin:miter;"/>
+    <path d="M 32,29.5 C 32,29.5 40.5,25.5 38.03,19.85 C 34.15,14 25,18 22.5,24.5 L 22.5,26.6 L 22.5,24.5 C 20,18 10.85,14 6.97,19.85 C 4.5,25.5 13,29.5 13,29.5" style="fill:none; stroke:#ffffff;"/>
+    <path d="M 12.5,30 C 18,27 27,27 32.5,30 M 12.5,33.5 C 18,30.5 27,30.5 32.5,33.5 M 12.5,37 C 18,34 27,34 32.5,37" style="fill:none; stroke:#ffffff;"/>
+  </g>
+</svg>
