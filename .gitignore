@@ -1,8 +1,23 @@
-!README.md
-!IMPLEMENTATION_SUMMARY.md
-!implementation_plan.md
-engine_src/engine
-*.o
-.vscode/
+# Build artifacts
 build/
+bin/
+*.o
+*.obj
+engine_src/engine
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Node.js
+node_modules/
+npm-debug.log*
+
+# System & Editor files
+.DS_Store
+.vscode/
+.idea/
 .cache/
+.superpowers/

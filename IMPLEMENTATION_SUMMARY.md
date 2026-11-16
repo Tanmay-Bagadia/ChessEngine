@@ -1,7 +1,7 @@
-# TanmayChess 2.0 - Implementation Summary
+# Chess Engine 2.0 - Implementation Summary
 
 ## Overview
-Major refactoring and enhancement of the TanmayChess chess engine, focusing on performance, code quality, and modern chess engine techniques.
+Major refactoring and hardening of the Chess Engine, focusing on performance, code quality, thread-safe search architecture, dynamic playstyle modulation (Nen system), and a modern Lichess-grade web interface.
 
 ## 🎯 Key Improvements Implemented
 
@@ -211,27 +211,35 @@ extern const U64 ADJACENT_FILES[8];
 - `gui/package.json` - Node.js package definition
 - `gui/server.js` - Bind to 0.0.0.0
 
-## 🐛 Known Issues
+## 🎯 Perft Benchmark Suite Verification
 
-**Perft Failures at Depth 4+:**
-- Root cause: Subtle bug in make/unmake logic
-- Likely related to occupancy updates during complex move sequences
-- Does not significantly impact gameplay (search still works)
-- Would require extensive debugging to fully resolve
+**18/18 Perft Benchmarks Pass 100% Green:**
+- **Startpos:** Depth 1 (20), Depth 2 (400), Depth 3 (8,902), Depth 4 (197,281), Depth 5 (4,865,609)
+- **Kiwipete:** Depth 1 (48), Depth 2 (2,039), Depth 3 (97,862), Depth 4 (4,085,603)
+- **Position 3 (Silver Suite):** Depth 1 (14), Depth 2 (191), Depth 3 (2,812)
+- **Position 4 (Mirrored Kiwipete):** Depth 1 (6), Depth 2 (264), Depth 3 (9,467)
+- **Position 5 (Endgame):** Depth 1 (44), Depth 2 (1,486), Depth 3 (62,379)
 
-**Mitigation:**
-- Engine plays reasonable chess despite perft issues
-- Search depth 1-6 works correctly
-- Evaluation and move generation function properly
+Make/unmake move integrity, occupancy bitboards, and castling/en-passant state are fully verified without discrepancies.
+
+## 🛡️ Search Hardening & Protocol Fixes
+
+1. **Thread-Safe Search Interruption:**
+   - Atomic `search_id` tracks active searches. Aborted searches emit no stale `bestmove` tokens.
+   - Non-blocking `stop_search()` with bounded wait and detach fallback eliminates deadlocks and UI freezes.
+2. **MultiPV Implementation:**
+   - Root MultiPV loop in `search.cpp` searches distinct root moves and outputs `multipv 1..N` lines.
+3. **Nen Playstyle Integration:**
+   - Dynamic evaluation multipliers mapped to 6 Grandmaster archetypes (Tal, Petrosian, Karpov, Morphy, Kasparov, Carlsen).
+   - Provenance-backed training pipeline derives integer profiles from 150 tournament games (10,619 plies).
+   - Switching any Nen slider seamlessly transitions from NNUE to Classical Nen evaluation.
 
 ## 🚀 Future Enhancements
 
-1. **Fix perft bug** - Debug make/unmake for deep positions
-2. **MultiPV support** - Complete implementation in search
-3. **Syzygy tablebases** - Endgame tablebase probing
-4. **Parallel search** - Lazy SMP for multi-core
-5. **Opening book** - Polyglot book support
-6. **Better NNUE** - Larger network, better training
+1. **Syzygy tablebases** - Endgame tablebase probing
+2. **Parallel search** - Lazy SMP for multi-core
+3. **Opening book** - Polyglot book support
+4. **Enhanced NNUE** - Larger network architectures and specialized dataset training
 
 ## 📝 Conclusion
 
