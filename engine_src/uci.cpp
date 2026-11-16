@@ -17,12 +17,59 @@ static Position pos;
 static SearchInfo info;
 static U64 game_history[4096];
 static int game_history_count = 0;
+std::atomic<uint64_t> current_search_id{0};
+static std::atomic<bool> search_running{false};
 static std::thread search_thread;
 
-static void stop_search() {
+static void stop_search(StopReason reason = STOP_USER) {
     info.stopped = true;
-    if (search_thread.joinable())
-        search_thread.join();
+    if (reason != STOP_USER) {
+        current_search_id.fetch_add(1);
+    }
+
+    switch (reason) {
+        case STOP_OPTION:
+            std::cout << "info string stop requested (option)" << std::endl;
+            break;
+        case STOP_POSITION:
+            std::cout << "info string stop requested (position)" << std::endl;
+            break;
+        case STOP_NEW_GO:
+            std::cout << "info string stop requested (new go)" << std::endl;
+            break;
+        case STOP_QUIT:
+            std::cout << "info string stop requested (quit)" << std::endl;
+            break;
+        case STOP_USER:
+            std::cout << "info string stop requested (user)" << std::endl;
+            break;
+    }
+
+    if (reason == STOP_QUIT) {
+        if (search_thread.joinable()) {
+            search_thread.join();
+        }
+    } else {
+        // Bounded wait up to 15ms
+        int waited_us = 0;
+        while (search_running.load() && waited_us < 15000) {
+            std::this_thread::sleep_for(std::chrono::microseconds(100));
+            waited_us += 100;
+        }
+        if (!search_running.load()) {
+            if (search_thread.joinable()) {
+                search_thread.join();
+            }
+        } else {
+            // Detach fallback so readline thread never blocks or deadlocks
+            if (search_thread.joinable()) {
+                std::thread old_thread = std::move(search_thread);
+                std::thread([t = std::move(old_thread)]() mutable {
+                    if (t.joinable()) t.join();
+                }).detach();
+            }
+        }
+    }
 }
 
 static Move parse_move(Position &pos, const std::string &str) {
@@ -91,7 +138,7 @@ static void parse_position(std::istringstream &is) {
 }
 
 static void parse_go(std::istringstream &is) {
-    stop_search();
+    stop_search(STOP_NEW_GO);
     std::string token;
     int depth = MAX_PLY;
     int64_t wtime = 0, btime = 0, winc = 0, binc = 0;
@@ -143,8 +190,13 @@ static void parse_go(std::istringstream &is) {
         info.rep_history[i] = game_history[i];
     info.rep_count = game_history_count;
 
-    search_thread = std::thread([]() {
-        search_position(pos, info);
+    uint64_t search_id = ++current_search_id;
+    info.stopped = false;
+    search_running = true;
+
+    search_thread = std::thread([pos_copy = pos, search_id]() mutable {
+        search_position(pos_copy, info, search_id);
+        search_running = false;
     });
 }
 
@@ -157,12 +209,26 @@ void uci_loop() {
         if (!(is >> token)) continue;
 
         if (token == "uci") {
-            std::cout << "id name TanmayChess 2.0" << std::endl;
+            std::cout << "id name Chess Engine" << std::endl;
             std::cout << "id author Tanmay" << std::endl;
             std::cout << "option name Hash type spin default 16 min 1 max 1024" << std::endl;
             std::cout << "option name MultiPV type spin default 1 min 1 max 5" << std::endl;
             std::cout << "option name UseNNUE type check default " << (get_use_nnue() ? "true" : "false") << std::endl;
             std::cout << "option name EvalFile type string default nnue.bin" << std::endl;
+            std::cout << "option name Style_Calculation type spin default 50 min 0 max 100" << std::endl;
+            std::cout << "option name Style_Aggression type spin default 50 min 0 max 100" << std::endl;
+            std::cout << "option name Style_Structure type spin default 50 min 0 max 100" << std::endl;
+            std::cout << "option name Style_Creativity type spin default 50 min 0 max 100" << std::endl;
+            std::cout << "option name Style_Prophylaxis type spin default 50 min 0 max 100" << std::endl;
+            std::cout << "option name Style_Activity type spin default 50 min 0 max 100" << std::endl;
+            std::cout << "option name Style_Preset type combo default Balanced var Balanced var Tal var Petrosian var Karpov var Morphy var Kasparov var Carlsen var Custom" << std::endl;
+            std::cout << "option name Nen_Enhancement type spin default 50 min 0 max 100" << std::endl;
+            std::cout << "option name Nen_Transmutation type spin default 50 min 0 max 100" << std::endl;
+            std::cout << "option name Nen_Conjuration type spin default 50 min 0 max 100" << std::endl;
+            std::cout << "option name Nen_Specialization type spin default 50 min 0 max 100" << std::endl;
+            std::cout << "option name Nen_Manipulation type spin default 50 min 0 max 100" << std::endl;
+            std::cout << "option name Nen_Emission type spin default 50 min 0 max 100" << std::endl;
+            std::cout << "option name Nen_Preset type combo default Balanced var Balanced var Tal var Petrosian var Karpov var Morphy var Kasparov var Carlsen var Custom" << std::endl;
             std::cout << "uciok" << std::endl;
         }
         else if (token == "isready") {
@@ -173,58 +239,91 @@ void uci_loop() {
             if (is >> name_tok && name_tok == "name" && is >> opt_name) {
                 if (opt_name == "Hash" && is >> val_tok && val_tok == "value") {
                     int val = 16;
-                    if (is >> val) { stop_search(); init_tt(val); }
+                    if (is >> val) { stop_search(STOP_OPTION); init_tt(val); }
                 }
                 else if (opt_name == "MultiPV" && is >> val_tok && val_tok == "value") {
                     int val = 1;
-                    if (is >> val) { stop_search(); info.multipv = std::clamp(val, 1, 5); }
+                    if (is >> val) { stop_search(STOP_OPTION); info.multipv = std::clamp(val, 1, 5); }
                 }
                 else if (opt_name == "UseNNUE" && is >> val_tok && val_tok == "value") {
                     std::string val;
-                    if (is >> val) { stop_search(); set_use_nnue(val == "true"); }
+                    if (is >> val) { stop_search(STOP_OPTION); set_use_nnue(val == "true"); }
                 }
                 else if (opt_name == "EvalFile" && is >> val_tok && val_tok == "value") {
                     std::string filename;
-                    if (is >> filename) { stop_search(); load_nnue_file(filename.c_str()); }
+                    if (is >> filename) { stop_search(STOP_OPTION); load_nnue_file(filename.c_str()); }
+                }
+                else if ((opt_name.rfind("Style_", 0) == 0 || opt_name.rfind("Nen_", 0) == 0) && is >> val_tok && val_tok == "value") {
+                    stop_search(STOP_OPTION);
+                    if (get_use_nnue()) {
+                        set_use_nnue(false);
+                        std::cout << "info string Style options active, NNUE disabled (classical Nen eval)" << std::endl;
+                    }
+                    NenProfile prof = get_nen_profile();
+                    if (opt_name == "Style_Preset" || opt_name == "Nen_Preset") {
+                        std::string preset;
+                        if (is >> preset) {
+                            if (preset == "Tal") prof = TAL_PROFILE;
+                            else if (preset == "Petrosian") prof = PETROSIAN_PROFILE;
+                            else if (preset == "Karpov") prof = KARPOV_PROFILE;
+                            else if (preset == "Morphy") prof = MORPHY_PROFILE;
+                            else if (preset == "Kasparov") prof = KASPAROV_PROFILE;
+                            else if (preset == "Carlsen") prof = CARLSEN_PROFILE;
+                            else if (preset == "Balanced") prof = BALANCED_PROFILE;
+                        }
+                    } else {
+                        int val = 50;
+                        if (is >> val) {
+                            val = std::clamp(val, 0, 100);
+                            if (opt_name == "Style_Calculation" || opt_name == "Nen_Enhancement") prof.enhancement = val;
+                            else if (opt_name == "Style_Aggression" || opt_name == "Nen_Transmutation") prof.transmutation = val;
+                            else if (opt_name == "Style_Structure" || opt_name == "Nen_Conjuration") prof.conjuration = val;
+                            else if (opt_name == "Style_Creativity" || opt_name == "Nen_Specialization") prof.specialization = val;
+                            else if (opt_name == "Style_Prophylaxis" || opt_name == "Nen_Manipulation") prof.manipulation = val;
+                            else if (opt_name == "Style_Activity" || opt_name == "Nen_Emission") prof.emission = val;
+                        }
+                    }
+                    set_nen_profile(prof);
+                    clear_tt();
                 }
             }
         }
         else if (token == "ucinewgame") {
-            stop_search();
+            stop_search(STOP_POSITION);
             clear_tt();
             info.clear();
             game_history_count = 0;
             load_fen(pos, START_FEN);
         }
         else if (token == "position") {
-            stop_search();
+            stop_search(STOP_POSITION);
             parse_position(is);
         }
         else if (token == "go") {
             parse_go(is);
         }
         else if (token == "stop") {
-            stop_search();
+            stop_search(STOP_USER);
         }
         else if (token == "quit") {
-            stop_search();
+            stop_search(STOP_QUIT);
             break;
         }
         else if (token == "d" || token == "display") {
-            stop_search();
+            stop_search(STOP_USER);
             print_board(pos);
         }
         else if (token == "fen") {
-            stop_search();
+            stop_search(STOP_USER);
             std::cout << "fen " << export_fen(pos) << std::endl;
         }
         else if (token == "eval") {
-            stop_search();
+            stop_search(STOP_USER);
             int score = evaluate(pos);
             std::cout << "Evaluation: " << score << " cp (from " << (pos.side_to_move == WHITE ? "white" : "black") << "'s perspective)" << std::endl;
         }
         else if (token == "bench") {
-            stop_search();
+            stop_search(STOP_USER);
             // Run a benchmark: search several positions to fixed depth
             const char *bench_fens[] = {
                 "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",

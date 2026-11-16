@@ -82,5 +82,15 @@ struct SearchInfo {
     }
 };
 
+enum StopReason {
+    STOP_USER,
+    STOP_OPTION,
+    STOP_POSITION,
+    STOP_NEW_GO,
+    STOP_QUIT
+};
+
+extern std::atomic<uint64_t> current_search_id;
+
 int64_t get_time_ms();
-void search_position(Position &pos, SearchInfo &info);
+void search_position(Position &pos, SearchInfo &info, uint64_t search_id = 0);

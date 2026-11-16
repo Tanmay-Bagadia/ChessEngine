@@ -229,6 +229,7 @@ static int evaluate_pawn_structure(const Position &pos, int eg_bonus[2]) {
     eg_bonus[0] = eg_bonus[1] = 0;
 
     for (int color = 0; color < 2; color++) {
+        int sign = (color == WHITE) ? 1 : -1;
         U64 pawns = pos.pieces[color][PAWN];
         U64 enemy_pawns = pos.pieces[color ^ 1][PAWN];
 
@@ -241,14 +242,14 @@ static int evaluate_pawn_structure(const Position &pos, int eg_bonus[2]) {
             // Doubled pawns: another friendly pawn on same file
             U64 file_pawns = pawns & FILE_MASKS[file];
             if (popcount(file_pawns) > 1) {
-                mg += DOUBLED_PAWN_MG;
+                mg += sign * DOUBLED_PAWN_MG;
                 eg_bonus[color] += DOUBLED_PAWN_EG;
             }
 
             // Isolated pawns: no friendly pawns on adjacent files
             U64 adj_pawns = pawns & ADJACENT_FILES[file];
             if (adj_pawns == 0) {
-                mg += ISOLATED_PAWN_MG;
+                mg += sign * ISOLATED_PAWN_MG;
                 eg_bonus[color] += ISOLATED_PAWN_EG;
             }
 
@@ -322,10 +323,107 @@ static int evaluate_mobility(const Position &pos) {
     return mg;
 }
 
+static NenProfile active_nen_profile = BALANCED_PROFILE;
+static int attack_mult_1000 = 1000;
+static int pawn_mult_1000 = 1000;
+static int mob_mult_1000 = 1000;
+static int shield_mult_1000 = 1000;
+static int mat_mult_1000 = 1000;
+
+void set_nen_profile(const NenProfile &prof) {
+    active_nen_profile = prof;
+    attack_mult_1000 = prof.transmutation * 12 + prof.emission * 8;
+    pawn_mult_1000   = prof.conjuration * 14 + prof.manipulation * 6;
+    mob_mult_1000    = prof.emission * 12 + prof.specialization * 8;
+    shield_mult_1000 = prof.manipulation * 13 + prof.enhancement * 7;
+    mat_mult_1000    = 700 + prof.enhancement * 6;
+}
+
+NenProfile get_nen_profile() {
+    return active_nen_profile;
+}
+
+int evaluate_king_attack(const Position &pos, int attacker_color) {
+    int enemy = attacker_color ^ 1;
+    if (pos.pieces[enemy][KING] == 0ULL) return 0;
+    int king_sq = lsb(pos.pieces[enemy][KING]);
+    int k_file = king_sq % 8;
+    int k_rank = king_sq / 8;
+
+    // King zone: 3x3 square ring around the enemy king
+    U64 king_zone = 0ULL;
+    for (int r = std::max(0, k_rank - 1); r <= std::min(7, k_rank + 1); r++) {
+        for (int f = std::max(0, k_file - 1); f <= std::min(7, k_file + 1); f++) {
+            king_zone |= (1ULL << (r * 8 + f));
+        }
+    }
+    // Expand one rank toward the attacker's side
+    if (enemy == BLACK && k_rank > 1) {
+        for (int f = std::max(0, k_file - 1); f <= std::min(7, k_file + 1); f++)
+            king_zone |= (1ULL << ((k_rank - 2) * 8 + f));
+    } else if (enemy == WHITE && k_rank < 6) {
+        for (int f = std::max(0, k_file - 1); f <= std::min(7, k_file + 1); f++)
+            king_zone |= (1ULL << ((k_rank + 2) * 8 + f));
+    }
+
+    U64 occ = pos.occupancy[BOTH];
+    int attack_weight = 0;
+    int attack_count = 0;
+
+    // Knights
+    U64 knights = pos.pieces[attacker_color][KNIGHT];
+    while (knights) {
+        int sq = pop_lsb(knights);
+        U64 hits = knight_attacks[sq] & king_zone;
+        if (hits) {
+            attack_count++;
+            attack_weight += 20 * popcount(hits);
+        }
+    }
+
+    // Bishops
+    U64 bishops = pos.pieces[attacker_color][BISHOP];
+    while (bishops) {
+        int sq = pop_lsb(bishops);
+        U64 hits = get_bishop_attacks(sq, occ) & king_zone;
+        if (hits) {
+            attack_count++;
+            attack_weight += 20 * popcount(hits);
+        }
+    }
+
+    // Rooks
+    U64 rooks = pos.pieces[attacker_color][ROOK];
+    while (rooks) {
+        int sq = pop_lsb(rooks);
+        U64 hits = get_rook_attacks(sq, occ) & king_zone;
+        if (hits) {
+            attack_count++;
+            attack_weight += 35 * popcount(hits);
+        }
+    }
+
+    // Queens
+    U64 queens = pos.pieces[attacker_color][QUEEN];
+    while (queens) {
+        int sq = pop_lsb(queens);
+        U64 hits = (get_bishop_attacks(sq, occ) | get_rook_attacks(sq, occ)) & king_zone;
+        if (hits) {
+            attack_count++;
+            attack_weight += 40 * popcount(hits);
+        }
+    }
+
+    static const int attack_scale[8] = {0, 0, 20, 40, 60, 80, 100, 120};
+    int scale_idx = std::min(7, attack_count);
+    return (attack_weight * attack_scale[scale_idx]) / 100;
+}
+
 static int evaluate_piece_bonuses(const Position &pos) {
     int mg = 0, eg = 0;
 
     for (int color = 0; color < 2; color++) {
+        if (pos.pieces[color][KING] == 0ULL) continue;
         int sign = (color == WHITE) ? 1 : -1;
 
         // Bishop pair bonus
@@ -349,7 +447,7 @@ static int evaluate_piece_bonuses(const Position &pos) {
                 mg += sign * ROOK_SEMI_OPEN_FILE_MG;
         }
 
-        // King safety: pawn shield
+        // King safety: pawn shield scaled by shield_mult
         int king_sq = lsb(pos.pieces[color][KING]);
         int king_file = king_sq % 8;
         int king_rank = king_sq / 8;
@@ -364,7 +462,7 @@ static int evaluate_piece_bonuses(const Position &pos) {
             }
         }
         int shield_count = popcount(pos.pieces[color][PAWN] & shield_mask);
-        mg += sign * shield_count * KING_SHIELD_BONUS;
+        mg += sign * ((shield_count * KING_SHIELD_BONUS * shield_mult_1000) / 1000);
     }
 
     return mg + eg; // Simplified: both go into mg for now
@@ -389,12 +487,20 @@ int evaluate(const Position &pos) {
 
     // Dynamic positional terms (not incremental)
     int eg_bonus[2] = {0, 0};
-    int pawn_mg = evaluate_pawn_structure(pos, eg_bonus);
-    int mobility_mg = evaluate_mobility(pos);
+    int pawn_mg = (evaluate_pawn_structure(pos, eg_bonus) * pawn_mult_1000) / 1000;
+    int mobility_mg = (evaluate_mobility(pos) * mob_mult_1000) / 1000;
     int piece_mg = evaluate_piece_bonuses(pos);
 
-    int mg = (mg_white - mg_black) + pawn_mg + mobility_mg + piece_mg;
-    int eg = (eg_white - eg_black) + (eg_bonus[WHITE] - eg_bonus[BLACK]);
+    // King attack evaluation
+    int attack_white = evaluate_king_attack(pos, WHITE);
+    int attack_black = evaluate_king_attack(pos, BLACK);
+    int attack_mg = ((attack_white - attack_black) * attack_mult_1000) / 1000;
+
+    int mg_diff = ((mg_white - mg_black) * mat_mult_1000) / 1000;
+    int eg_diff = ((eg_white - eg_black) * mat_mult_1000) / 1000;
+
+    int mg = mg_diff + pawn_mg + mobility_mg + piece_mg + attack_mg;
+    int eg = eg_diff + ((eg_bonus[WHITE] - eg_bonus[BLACK]) * pawn_mult_1000) / 1000;
 
     // Tapered evaluation
     int mg_phase = phase;

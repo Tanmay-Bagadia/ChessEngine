@@ -552,8 +552,6 @@ int see(Position &pos, Move move) {
     int d = 0;
 
     while (true) {
-        d++;
-
         // Find least valuable attacker for 'side'
         U64 my_attackers = 0;
         for (int p = PAWN; p <= KING; p++)
@@ -575,6 +573,7 @@ int see(Position &pos, Move move) {
             if (opp_attackers) break;
         }
 
+        d++;
         // This attacker captures the piece on square
         balance[d] = on_square_val - balance[d - 1];
 

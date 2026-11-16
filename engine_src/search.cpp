@@ -253,6 +253,11 @@ static int quiescence(Position &pos, int alpha, int beta, SearchInfo &info, int 
 
 // ===== Negamax Search =====
 
+static int get_draw_score(int ply) {
+    int contempt = (get_nen_profile().transmutation - 50) / 2;
+    return (ply % 2 == 1) ? contempt : -contempt;
+}
+
 static int negamax(Position &pos, int alpha, int beta, int depth, int ply, SearchInfo &info, bool do_null) {
     info.pv_length[ply] = ply;
 
@@ -262,11 +267,11 @@ static int negamax(Position &pos, int alpha, int beta, int depth, int ply, Searc
 
     // Repetition check
     if (ply > 0 && is_repetition(info, pos.hash))
-        return 0;
+        return get_draw_score(ply);
 
     // 50-move rule
     if (ply > 0 && pos.halfmove_clock >= 100)
-        return 0;
+        return get_draw_score(ply);
 
     int king_sq = lsb(pos.pieces[pos.side_to_move][KING]);
     bool in_check = is_square_attacked(king_sq, pos.side_to_move ^ 1, pos);
@@ -466,95 +471,178 @@ static int negamax(Position &pos, int alpha, int beta, int depth, int ply, Searc
 
 // ===== Root search =====
 
-void search_position(Position &pos, SearchInfo &info) {
+void search_position(Position &pos, SearchInfo &info, uint64_t search_id) {
     info.clear();
     info.start_time_ms = get_time_ms();
     info.stopped = false;
 
-    // Find first legal move as fallback
+    // Find all legal moves at the root
     MoveList root_moves;
     generate_moves(pos, root_moves);
-    Move fallback = 0;
+    std::vector<Move> legal_root_moves;
     for (int i = 0; i < root_moves.size(); i++) {
         UndoInfo undo;
         if (make_move(pos, root_moves[i], undo)) {
-            fallback = root_moves[i];
+            legal_root_moves.push_back(root_moves[i]);
             unmake_move(pos, root_moves[i], undo);
-            break;
         }
     }
-    info.best_move = fallback;
 
-    Move best_move = fallback;
-    int best_score = 0;
+    if (legal_root_moves.empty()) {
+        info.best_move = 0;
+        info.score = 0;
+        if (search_id == current_search_id.load()) {
+            std::cout << "bestmove (none)" << std::endl;
+        } else {
+            std::cout << "info string search aborted" << std::endl;
+        }
+        return;
+    }
+
+    int num_pvs = std::clamp(info.multipv, 1, (int)legal_root_moves.size());
+    std::vector<Move> best_pvs(num_pvs, legal_root_moves[0]);
+    std::vector<int> best_pv_scores(num_pvs, 0);
+
+    info.best_move = legal_root_moves[0];
+    info.score = 0;
 
     // Iterative deepening
     for (int d = 1; d <= info.depth; d++) {
-        // Time management: don't start a new iteration if > 50% time used
         if (info.time_limit_ms > 0 && d > 1) {
             int64_t elapsed = get_time_ms() - info.start_time_ms;
             if (elapsed >= info.time_limit_ms * 55 / 100)
                 break;
         }
 
-        // Aspiration windows for depth >= 4
-        int score;
-        if (d >= 4) {
-            int delta = 25;
-            int alpha = std::max(-INF_SCORE, best_score - delta);
-            int beta = std::min(INF_SCORE, best_score + delta);
+        std::vector<Move> current_d_pvs(num_pvs, 0);
+        std::vector<int> current_d_scores(num_pvs, -INF_SCORE);
+        bool iteration_aborted = false;
 
-            while (true) {
-                score = negamax(pos, alpha, beta, d, 0, info, true);
-                if (info.stopped) break;
+        for (int pv = 0; pv < num_pvs; pv++) {
+            if (info.stopped || search_id != current_search_id.load()) {
+                iteration_aborted = true;
+                break;
+            }
 
-                if (score <= alpha) {
-                    alpha = std::max(-INF_SCORE, alpha - delta);
-                    delta += delta / 2;
-                } else if (score >= beta) {
-                    beta = std::min(INF_SCORE, beta + delta);
-                    delta += delta / 2;
-                } else {
-                    break;
+            Move best_move_for_pv = 0;
+            int best_score_for_pv = -INF_SCORE;
+            std::vector<Move> best_line_pv;
+
+            // Order root moves: place previous iteration's best move for this PV first
+            std::vector<Move> ordered_moves = legal_root_moves;
+            if (d > 1 && pv < (int)best_pvs.size() && best_pvs[pv] != 0) {
+                auto it = std::find(ordered_moves.begin(), ordered_moves.end(), best_pvs[pv]);
+                if (it != ordered_moves.end()) {
+                    std::rotate(ordered_moves.begin(), it, it + 1);
                 }
             }
-        } else {
-            score = negamax(pos, -INF_SCORE, INF_SCORE, d, 0, info, true);
+
+            int alpha = -INF_SCORE;
+            int beta = INF_SCORE;
+
+            for (Move m : ordered_moves) {
+                if (info.stopped || search_id != current_search_id.load()) {
+                    iteration_aborted = true;
+                    break;
+                }
+
+                // Exclude moves chosen by earlier PVs at this depth
+                bool excluded = false;
+                for (int p = 0; p < pv; p++) {
+                    if (current_d_pvs[p] == m) {
+                        excluded = true;
+                        break;
+                    }
+                }
+                if (excluded) continue;
+
+                UndoInfo undo;
+                if (!make_move(pos, m, undo))
+                    continue;
+
+                if (info.rep_count < 4096)
+                    info.rep_history[info.rep_count++] = undo.hash;
+
+                // Full window search
+                int score = -negamax(pos, -beta, -alpha, d - 1, 1, info, true);
+
+                if (info.rep_count > 0)
+                    info.rep_count--;
+
+                unmake_move(pos, m, undo);
+
+                if (info.stopped || search_id != current_search_id.load()) {
+                    iteration_aborted = true;
+                    break;
+                }
+
+                if (score > best_score_for_pv) {
+                    best_score_for_pv = score;
+                    best_move_for_pv = m;
+
+                    best_line_pv.clear();
+                    best_line_pv.push_back(m);
+                    for (int j = 1; j < info.pv_length[1]; j++) {
+                        best_line_pv.push_back(info.pv[1][j]);
+                    }
+
+                    if (score > alpha) {
+                        alpha = score;
+                    }
+                }
+            }
+
+            if (iteration_aborted) break;
+
+            if (best_move_for_pv != 0) {
+                current_d_pvs[pv] = best_move_for_pv;
+                current_d_scores[pv] = best_score_for_pv;
+            }
+
+            int64_t elapsed = get_time_ms() - info.start_time_ms;
+            if (elapsed == 0) elapsed = 1;
+
+            std::cout << "info depth " << d
+                      << " multipv " << (pv + 1)
+                      << " score ";
+
+            if (best_score_for_pv > MATE_SCORE - MAX_PLY)
+                std::cout << "mate " << (MATE_SCORE - best_score_for_pv + 1) / 2;
+            else if (best_score_for_pv < -MATE_SCORE + MAX_PLY)
+                std::cout << "mate " << -(MATE_SCORE + best_score_for_pv + 1) / 2;
+            else
+                std::cout << "cp " << best_score_for_pv;
+
+            std::cout << " nodes " << info.nodes
+                      << " time " << elapsed
+                      << " nps " << (info.nodes * 1000 / elapsed)
+                      << " hashfull 0"
+                      << " pv";
+
+            for (Move pvm : best_line_pv) {
+                std::cout << " " << move_to_uci(pvm);
+            }
+            std::cout << std::endl;
         }
 
-        if (info.stopped) break;
+        if (iteration_aborted) break;
 
-        if (info.pv_length[0] > 0)
-            best_move = info.pv[0][0];
-        best_score = score;
-
-        int64_t elapsed = get_time_ms() - info.start_time_ms;
-        if (elapsed == 0) elapsed = 1;
-
-        std::cout << "info depth " << d
-                  << " score ";
-
-        if (best_score > MATE_SCORE - MAX_PLY)
-            std::cout << "mate " << (MATE_SCORE - best_score + 1) / 2;
-        else if (best_score < -MATE_SCORE + MAX_PLY)
-            std::cout << "mate " << -(MATE_SCORE + best_score + 1) / 2;
-        else
-            std::cout << "cp " << best_score;
-
-        std::cout << " nodes " << info.nodes
-                  << " time " << elapsed
-                  << " nps " << (info.nodes * 1000 / elapsed)
-                  << " hashfull " << 0
-                  << " pv";
-
-        for (int i = 0; i < info.pv_length[0]; i++)
-            std::cout << " " << move_to_uci(info.pv[0][i]);
-
-        std::cout << std::endl;
+        for (int p = 0; p < num_pvs; p++) {
+            if (current_d_pvs[p] != 0) {
+                best_pvs[p] = current_d_pvs[p];
+                best_pv_scores[p] = current_d_scores[p];
+            }
+        }
     }
 
-    info.best_move = best_move;
-    info.score = best_score;
+    if (best_pvs[0] != 0) {
+        info.best_move = best_pvs[0];
+        info.score = best_pv_scores[0];
+    }
 
-    std::cout << "bestmove " << move_to_uci(info.best_move) << std::endl;
+    if (search_id == current_search_id.load()) {
+        std::cout << "bestmove " << move_to_uci(info.best_move) << std::endl;
+    } else {
+        std::cout << "info string search aborted" << std::endl;
+    }
 }
