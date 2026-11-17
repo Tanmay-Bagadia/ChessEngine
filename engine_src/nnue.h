@@ -6,7 +6,8 @@
 constexpr int NNUE_INPUTS = 768;
 constexpr int NNUE_ACCUMULATOR_SIZE = 256;
 constexpr int NNUE_HIDDEN1_SIZE = 32;
-constexpr int NNUE_SCALE = 16;
+constexpr int NNUE_OUTPUT_SCALE = 400;
+constexpr int NNUE_QUANT_DIVISOR = 64 * 127;
 
 struct Accumulator
 {

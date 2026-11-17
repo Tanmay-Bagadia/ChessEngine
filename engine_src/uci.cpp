@@ -219,6 +219,7 @@ void uci_loop() {
             std::cout << "option name Style_Aggression type spin default 50 min 0 max 100" << std::endl;
             std::cout << "option name Style_Structure type spin default 50 min 0 max 100" << std::endl;
             std::cout << "option name Style_Creativity type spin default 50 min 0 max 100" << std::endl;
+            std::cout << "option name Style_Defense type spin default 50 min 0 max 100" << std::endl;
             std::cout << "option name Style_Prophylaxis type spin default 50 min 0 max 100" << std::endl;
             std::cout << "option name Style_Activity type spin default 50 min 0 max 100" << std::endl;
             std::cout << "option name Style_Preset type combo default Balanced var Balanced var Tal var Petrosian var Karpov var Morphy var Kasparov var Carlsen var Custom" << std::endl;
@@ -257,7 +258,7 @@ void uci_loop() {
                     stop_search(STOP_OPTION);
                     if (get_use_nnue()) {
                         set_use_nnue(false);
-                        std::cout << "info string Style options active, NNUE disabled (classical Nen eval)" << std::endl;
+                        std::cout << "info string Style options active, NNUE disabled (classical playstyle eval)" << std::endl;
                     }
                     NenProfile prof = get_nen_profile();
                     if (opt_name == "Style_Preset" || opt_name == "Nen_Preset") {
@@ -279,7 +280,7 @@ void uci_loop() {
                             else if (opt_name == "Style_Aggression" || opt_name == "Nen_Transmutation") prof.transmutation = val;
                             else if (opt_name == "Style_Structure" || opt_name == "Nen_Conjuration") prof.conjuration = val;
                             else if (opt_name == "Style_Creativity" || opt_name == "Nen_Specialization") prof.specialization = val;
-                            else if (opt_name == "Style_Prophylaxis" || opt_name == "Nen_Manipulation") prof.manipulation = val;
+                            else if (opt_name == "Style_Defense" || opt_name == "Style_Prophylaxis" || opt_name == "Nen_Manipulation") prof.manipulation = val;
                             else if (opt_name == "Style_Activity" || opt_name == "Nen_Emission") prof.emission = val;
                         }
                     }
@@ -321,6 +322,16 @@ void uci_loop() {
             stop_search(STOP_USER);
             int score = evaluate(pos);
             std::cout << "Evaluation: " << score << " cp (from " << (pos.side_to_move == WHITE ? "white" : "black") << "'s perspective)" << std::endl;
+        }
+        else if (token == "evalfen") {
+            std::string fen_str;
+            std::getline(is, fen_str);
+            size_t first = fen_str.find_first_not_of(' ');
+            if (first != std::string::npos) {
+                Position tmp;
+                load_fen(tmp, fen_str.substr(first).c_str());
+                std::cout << evaluate(tmp) << '\n';
+            }
         }
         else if (token == "bench") {
             stop_search(STOP_USER);

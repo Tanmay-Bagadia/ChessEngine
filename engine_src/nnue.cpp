@@ -17,20 +17,22 @@ alignas(64) static int32_t l2_biases[NNUE_HIDDEN1_SIZE];
 alignas(64) static int8_t  output_weights[NNUE_HIDDEN1_SIZE];
 static int32_t output_bias = 0;
 
-constexpr uint32_t NNUE_MAGIC = 0x31764E4E; // "NNv1"
+constexpr uint32_t NNUE_MAGIC = 0x32764E4E; // "NNv2"
 
 void init_nnue()
 {
-    // Try to load default nnue file if present
-    if (load_nnue_file("nnue.bin"))
+    // Try default and parent paths so nnue.bin loads from repo root, build/, or gui/
+    const char *candidates[] = {"nnue.bin", "../nnue.bin", "../../nnue.bin"};
+    for (const char *path : candidates)
     {
-        use_nnue = false;
+        if (load_nnue_file(path))
+        {
+            use_nnue = false; // Default to classical PeSTO until toggled on
+            return;
+        }
     }
-    else
-    {
-        nnue_loaded = false;
-        use_nnue = false;
-    }
+    nnue_loaded = false;
+    use_nnue = false;
 }
 
 bool load_nnue_file(const char *filename)
@@ -153,7 +155,8 @@ int evaluate_nnue(const Position &pos, const Accumulator &acc)
     for (int i = 0; i < NNUE_HIDDEN1_SIZE; i++)
         output += (int32_t)l3_input[i] * (int32_t)output_weights[i];
 
-    return output / NNUE_SCALE;
+    // l3_input is scaled by 127, output_weights by 64; model outputs score / 400.0
+    return (int)(((int64_t)output * NNUE_OUTPUT_SCALE) / NNUE_QUANT_DIVISOR);
 }
 
 int evaluate_nnue_position(const Position &pos)

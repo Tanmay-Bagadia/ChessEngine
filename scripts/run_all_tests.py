@@ -33,10 +33,11 @@ def main():
     # Ensure ENGINE_PATH is unset if user wants to test default resolution
     # (or preserve if set, but verified to work without it)
     tests = [
-        ("Nen Training CI Check", [sys.executable, os.path.join(base_dir, "train_nen_styles.py"), "--check"]),
+        ("Playstyle Training CI Check", [sys.executable, os.path.join(base_dir, "train_nen_styles.py"), "--check"]),
         ("Engine Core & Perft Suite", [sys.executable, os.path.join(base_dir, "test_engine.py")]),
-        ("Nen Evaluation Behavioral Deltas", [sys.executable, os.path.join(base_dir, "test_nen_eval.py")]),
-        ("UCI Protocol & Nen/Style Options", [sys.executable, os.path.join(base_dir, "test_uci_nen.py")]),
+        ("NNUE v2 Accuracy & Symmetry", [sys.executable, os.path.join(base_dir, "test_nnue_accuracy.py")]),
+        ("Playstyle Evaluation Behavioral Deltas", [sys.executable, os.path.join(base_dir, "test_nen_eval.py")]),
+        ("UCI Protocol & Style Options", [sys.executable, os.path.join(base_dir, "test_uci_nen.py")]),
         ("Game Flow Multi-Run Duplication Test", [sys.executable, os.path.join(base_dir, "test_game_flow.py")]),
         ("GUI Server REST & State Endpoints", [sys.executable, os.path.join(base_dir, "test_gui_server.py")]),
     ]
