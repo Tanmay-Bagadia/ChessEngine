@@ -3,6 +3,7 @@
 #include "movegen.h"
 #include "zobrist.h"
 #include "evaluation.h"
+#include "nnue.h"
 #include <iostream>
 #include <sstream>
 
@@ -28,6 +29,8 @@ static inline void add_piece(Position &pos, int color, int piece, int sq) {
     pos.mg_score[color] += get_mg_value(color, piece, sq);
     pos.eg_score[color] += get_eg_value(color, piece, sq);
     pos.game_phase += get_phase_weight(piece);
+    if (pos.nnue_acc_valid && get_use_nnue())
+        nnue_add_feature(pos.nnue_acc, color, piece, sq);
 }
 
 static inline void remove_piece(Position &pos, int color, int piece, int sq) {
@@ -38,6 +41,8 @@ static inline void remove_piece(Position &pos, int color, int piece, int sq) {
     pos.mg_score[color] -= get_mg_value(color, piece, sq);
     pos.eg_score[color] -= get_eg_value(color, piece, sq);
     pos.game_phase -= get_phase_weight(piece);
+    if (pos.nnue_acc_valid && get_use_nnue())
+        nnue_sub_feature(pos.nnue_acc, color, piece, sq);
 }
 
 static inline void move_piece(Position &pos, int color, int piece, int from, int to) {
@@ -48,6 +53,8 @@ static inline void move_piece(Position &pos, int color, int piece, int from, int
     pos.hash ^= piece_keys[color][piece][from] ^ piece_keys[color][piece][to];
     pos.mg_score[color] += get_mg_value(color, piece, to) - get_mg_value(color, piece, from);
     pos.eg_score[color] += get_eg_value(color, piece, to) - get_eg_value(color, piece, from);
+    if (pos.nnue_acc_valid && get_use_nnue())
+        nnue_move_feature(pos.nnue_acc, color, piece, from, to);
 }
 
 // ---------- Init / FEN ----------
@@ -70,6 +77,13 @@ void load_fen(Position &pos, const char *fen) {
     pos.eg_score[0] = pos.eg_score[1] = 0;
     pos.game_phase = 0;
     pos.hash = 0;
+
+    if (is_nnue_loaded() && get_use_nnue()) {
+        nnue_reset_accumulator(pos.nnue_acc);
+        pos.nnue_acc_valid = true;
+    } else {
+        pos.nnue_acc_valid = false;
+    }
 
     std::istringstream ss(fen);
     std::string piece_placement, active_color, castling, ep_square;
@@ -242,11 +256,9 @@ bool make_move(Position &pos, Move move, UndoInfo &undo) {
         }
     }
 
-    // Move the piece
-    remove_piece(pos, us, piece, from);
-
-    // Handle promotions
+    // Move the piece (or promote)
     if (flag >= 8) {
+        remove_piece(pos, us, piece, from);
         int promo_piece;
         switch (flag & 3) {
             case 0: promo_piece = KNIGHT; break;
@@ -257,7 +269,7 @@ bool make_move(Position &pos, Move move, UndoInfo &undo) {
         }
         add_piece(pos, us, promo_piece, to);
     } else {
-        add_piece(pos, us, piece, to);
+        move_piece(pos, us, piece, from, to);
     }
 
     // Handle castling rook movement

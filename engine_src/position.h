@@ -55,6 +55,10 @@ struct Position {
     int mg_score[2];
     int eg_score[2];
     int game_phase;
+
+    // Incremental NNUE accumulator (768 -> 256 per perspective)
+    alignas(64) int16_t nnue_acc[2][256];
+    bool nnue_acc_valid;
 };
 
 bool make_move(Position &pos, Move move, UndoInfo &undo);

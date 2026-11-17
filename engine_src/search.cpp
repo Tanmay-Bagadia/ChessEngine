@@ -1,5 +1,6 @@
 #include "search.h"
 #include "evaluation.h"
+#include "nnue.h"
 #include "movegen.h"
 #include "perft.h"
 #include "zobrist.h"
@@ -475,6 +476,9 @@ void search_position(Position &pos, SearchInfo &info, uint64_t search_id) {
     info.clear();
     info.start_time_ms = get_time_ms();
     info.stopped = false;
+
+    if (get_use_nnue())
+        refresh_accumulator(pos);
 
     // Find all legal moves at the root
     MoveList root_moves;

@@ -248,11 +248,20 @@ void uci_loop() {
                 }
                 else if (opt_name == "UseNNUE" && is >> val_tok && val_tok == "value") {
                     std::string val;
-                    if (is >> val) { stop_search(STOP_OPTION); set_use_nnue(val == "true"); }
+                    if (is >> val) {
+                        stop_search(STOP_OPTION);
+                        set_use_nnue(val == "true");
+                        if (get_use_nnue()) refresh_accumulator(pos);
+                        clear_tt();
+                    }
                 }
                 else if (opt_name == "EvalFile" && is >> val_tok && val_tok == "value") {
                     std::string filename;
-                    if (is >> filename) { stop_search(STOP_OPTION); load_nnue_file(filename.c_str()); }
+                    if (is >> filename) {
+                        stop_search(STOP_OPTION);
+                        if (load_nnue_file(filename.c_str())) refresh_accumulator(pos);
+                        clear_tt();
+                    }
                 }
                 else if ((opt_name.rfind("Style_", 0) == 0 || opt_name.rfind("Nen_", 0) == 0) && is >> val_tok && val_tok == "value") {
                     stop_search(STOP_OPTION);
