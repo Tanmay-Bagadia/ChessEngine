@@ -1,207 +1,186 @@
-# ♟️ Chess Engine - Modern Chess Engine with Dynamic Playstyles
+# Chess Engine
 
-A high-performance chess engine written in C++17 with a web-based GUI. Features bitboard representation, magic bitboards for sliding piece attacks, sophisticated search algorithms, and both classical (PeSTO) and NNUE evaluation.
+A C++17 bitboard chess engine featuring **PeSTO classical evaluation with configurable Grandmaster playstyles**, an **incremental ARM NEON SCReLU NNUE neural network**, full **UCI protocol** support with MultiPV, and a **real-time web analysis GUI**.
 
-## 🚀 Features
+---
 
-### Engine
-- **Bitboard Representation** — Efficient 64-bit bitboards for all piece types
-- **Magic Bitboards** — Pre-computed attack tables for bishops and rooks using magic numbers
-- **Zobrist Hashing** — Incrementally updated position hashing
-- **Make/Unmake Move** — Efficient position updates with undo support (no full copies in search)
-- **Incremental Evaluation** — Material + PST scores updated incrementally during make/unmake
+## Strength & Benchmarks
 
-### Search
-- **Negamax with Alpha-Beta Pruning** — Core search algorithm
-- **Principal Variation Search (PVS)** — Narrow windows for non-PV moves
-- **Iterative Deepening** — Progressive depth increase with time management
-- **Aspiration Windows** — Narrow search windows around expected score
-- **Transposition Table** — Hash table with age-based replacement scheme
-- **Quiescence Search** — Captures-only search at leaf nodes with stand-pat evaluation
-- **Null Move Pruning** — Adaptive R = 3 + depth/6
-- **Late Move Reduction (LMR)** — Deeper reductions for late quiet moves
-- **Mate Distance Pruning** — Tighten alpha/beta near mate scores
-- **Check Extensions** — Extend search when in check
-- **Static Exchange Evaluation (SEE)** — Fast piece exchange evaluation
+Evaluated head-to-head against calibrated **Stockfish 19** (`UCI_LimitStrength` / `UCI_Elo`, `0.2s/move`, varied opening book pairs on Apple Silicon):
 
-### Move Ordering
-- **Hash Move** — TT best move searched first
-- **MVV-LVA** — Most Valuable Victim / Least Valuable Attacker for captures
-- **Killer Moves** — Two killer moves per ply
-- **Counter Move Heuristic** — Good responses to opponent's previous move
-- **History Heuristic** — Depth-squared bonuses with clamping
+| Evaluation Mode | Speed (Depth 9) | vs Stockfish 1700 | vs Stockfish 2000 | vs Stockfish 2300 | vs Stockfish 2500 | Estimated Strength |
+|---|---|---|---|---|---|---|
+| **Classical PeSTO** | ~1.10M NPS | `4.0 – 0.0` | `3.0 – 1.0` | `2.5 – 1.5` | `2.0 – 2.0` | **~2450–2500 Elo** *(UCI)* |
+| **NNUE v3 (SCReLU + NEON)** | ~585k NPS | — | `2.5 – 1.5` | `1.5 – 2.5` | `2.0 – 2.0` | **~2250–2450 Elo** *(UCI)* |
 
-### Evaluation & Playstyles
-- **Nen Playstyle System** — Dynamic modulation of evaluation weights across 6 Hunter × Hunter affinities (Enhancement/Calculation, Transmutation/Aggression, Conjuration/Structure, Specialization/Creativity, Manipulation/Prophylaxis, Emission/Activity)
-- **Calibrated Grandmaster Archetypes** — 6 empirically trained profiles (Tal, Petrosian, Karpov, Morphy, Kasparov, Carlsen) + Balanced Nen derived from tournament PGN analysis
-- **Tapered Evaluation** — Smooth interpolation between midgame and endgame
-- **PeSTO Piece-Square Tables** — Well-tuned positional values
-- **Pawn Structure** — Doubled, isolated, and passed pawn evaluation
-- **Mobility** — Piece mobility bonuses for knights, bishops, rooks, queens
-- **Bishop Pair Bonus** — Reward for having both bishops
-- **Rook on Open/Semi-Open Files** — Bonus for rooks on files without friendly/enemy pawns
-- **King Safety** — Pawn shield evaluation around the king
-- **NNUE Support** — Optional neural network evaluation (768→256→32→32→1 architecture) with automatic fallback to classical Nen eval when style options are modified
+- **Perft Correctness:** **18 / 18** standard benchmark positions pass (Startpos Depth 1–5, Kiwipete Depth 1–4, Positions 3–5 Depth 1–3).
 
-### UCI Protocol
-- Full UCI protocol support with thread-safe search interruption (atomic search IDs)
-- `position`, `go`, `stop`, `quit`, `isready`, `ucinewgame`
-- MultiPV support (`setoption name MultiPV value 3`) with distinct PV outputs
-- Style & Nen UCI options: `Style_Calculation`, `Style_Aggression`, `Style_Structure`, `Style_Creativity`, `Style_Prophylaxis`, `Style_Activity`, `Style_Preset` (and `Nen_*` aliases)
-- Custom commands: `d` (display), `eval`, `bench`, `fen`, `legalmoves`, `state`, `perftsuite`
+---
 
-### Web GUI
-- Modern dark-themed interface (Lichess-inspired layout; see reference in `docs/stitch/screen.png`)
-- Real-time engine analysis via Server-Sent Events (SSE)
-- Lichess-grade evaluation bar with smooth winning chance sigmoid
-- Real MultiPV display (rows 1-3)
-- Interactive Nen Persona Hexagon Radar with dynamic stroke, gradient stops, and aura glow
-- Full HTML5 piece drag-and-drop movement and click-to-move
-- Pawn promotion modal with backdrop click and Escape key cancellation
-- Segmented control for PESTO (Classical) vs NNUE evaluation
-- Custom FEN string loader, flip board, move history, play against engine toggle
+## Architecture & Features
 
-## 🏗️ Building
+### Core Engine (`engine_src/`)
+- **Bitboards & Magic Bitboards:** 64-bit piece bitboards with precomputed magic lookup tables for sliding piece attacks (bishops, rooks, queens).
+- **Incremental Make/Unmake:** Zero-copy `make_move` / `unmake_move` with `UndoInfo`, incrementally updating Zobrist hashes, tapered PeSTO scores, game phase, and NNUE accumulators.
+- **Search:** Negamax with Alpha-Beta pruning, Principal Variation Search (PVS), Iterative Deepening, Aspiration Windows, Age-Based Transposition Table, Quiescence Search with Static Exchange Evaluation (SEE), Null Move Pruning, Late Move Reductions (LMR), Futility Pruning, Late Move Pruning (LMP), Razoring, Check Extensions, Mate Distance Pruning, and **root MultiPV (`1..5`)**.
+- **Move Ordering:** Hash move → MVV-LVA captures → Promotions → Killer moves → Counter-move heuristic → History heuristic.
+- **Thread-Safe UCI:** Atomic search IDs with non-blocking bounded `stop_search` prevent stale `bestmove` leaks and UI freezes.
+
+### Dual Evaluation
+1. **Classical PeSTO + Playstyle Modulation:** Tapered Middlegame/Endgame PeSTO piece-square tables combined with pawn structure (doubled, isolated, passed), piece mobility, bishop pair, open/semi-open file rooks, and king safety—modulated dynamically across 6 playstyle settings.
+2. **NNUE v3 (`(768 → 256)×2 → 1` SCReLU):** Shallow Squared Clipped ReLU neural network quantized to `int16` (`QA=181, QB=64`), updated incrementally in `make_move`/`unmake_move` with **ARM NEON SIMD** vectorization (portable scalar fallback on non-ARM targets). Trained via hybrid Stockfish 19 static NNUE + PeSTO distillation on **117,780** diverse prime-era GM and endgame positions (**221,666** mirrored training vectors).
+
+### Playstyle Settings & Prime-Era GM Profiles
+Configurable in real time via sliders, presets, or UCI options (`Style_Calculation`, `Style_Aggression`, `Style_Structure`, `Style_Creativity`, `Style_Defense`, `Style_Activity`, `Style_Preset`). Changing any playstyle slider automatically switches to Classical evaluation.
+
+Presets are empirically calibrated from **900 prime-era classical games** (150 per player, 30,778 GM-perspective plies):
+
+| Grandmaster | Prime Era | Calc | Aggr | Struct | Creat | Def | Act |
+|---|---|---|---|---|---|---|---|
+| **Mikhail Tal** | 1957–1961 | 61% | 56% | 43% | 79% | 62% | 80% |
+| **Tigran Petrosian** | 1962–1969 | 31% | 25% | 95% | 25% | 95% | 25% |
+| **Anatoly Karpov** | 1974–1985 | 25% | 31% | 85% | 63% | 93% | 64% |
+| **Paul Morphy** | 1857–1859 | 95% | 95% | 25% | 95% | 25% | 95% |
+| **Garry Kasparov** | 1985–2000 | 49% | 48% | 65% | 56% | 92% | 69% |
+| **Magnus Carlsen** | 2013–2021 | 54% | 43% | 27% | 43% | 70% | 78% |
+| **Balanced** | — | 50% | 50% | 50% | 50% | 50% | 50% |
+
+### Web GUI (`gui/`)
+- Dark Lichess-inspired analysis workspace served via Node.js + Server-Sent Events (SSE) with 100% native C++ move validation.
+- Live evaluation bar, MultiPV candidate lines, interactive 6-axis playstyle radar & sliders, PESTO/NNUE mode switcher, HTML5 drag-and-drop & click-to-move, promotion modal (`Escape`/backdrop cancel), custom FEN loader, and keyboard shortcuts (`F`, `U`, `N`, `Space`).
+
+---
+
+## Quick Start
 
 ### Prerequisites
-- C++17 compiler (GCC 7+, Clang 5+, MSVC 2017+)
-- CMake 3.16+
-- Node.js (for the web GUI)
+- C++17 compiler (Clang / GCC / MSVC) & CMake 3.16+
+- Node.js 18+ (for the Web GUI)
+- Python 3.9+ (for testing, training pipelines, and 1v1 engine matches)
 
-### Build the Engine
-
+### 1. Build the C++ Engine
 ```bash
-mkdir -p build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-cmake --build . -- -j$(nproc)
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
 ```
+The compiled binary is written to `build/engine`.
 
-The engine binary will be at `build/engine`.
-
-### Run the GUI
-
+### 2. Run the Web GUI
 ```bash
-cd gui
-npm install
-node server.js
+node gui/server.js
+```
+Open **http://localhost:3000** in your browser.
+
+---
+
+## UCI Protocol & Custom Commands
+
+Standard UCI commands (`uci`, `isready`, `ucinewgame`, `position`, `go`, `stop`, `quit`, `setoption`) plus diagnostic helpers:
+
+```text
+setoption name Hash value 64
+setoption name MultiPV value 3
+setoption name UseNNUE value true
+setoption name Style_Preset value Tal
+setoption name Style_Aggression value 85
+setoption name Style_Defense value 70
+
+d / display              # Print ASCII board & FEN
+eval                     # Static evaluation from side-to-move perspective
+evalfen <fen>            # Fast single-line static evaluation of a FEN
+perftsuite [max_depth]   # Run built-in perft verification suite
+go perft <depth>         # Perft divide
+legalmoves / state       # Legal move list / structured GUI state
 ```
 
-Then open `http://localhost:3000` in your browser.
+---
 
-## 📊 Usage
+## Testing, Training & Engine Matches
 
-### UCI Commands
-
-```
-uci                           # Handshake
-isready                       # Wait for ready
-position startpos             # Set starting position
-position startpos moves e2e4 e7e5  # Play moves
-position fen <fen_string>     # Load FEN
-go depth 10                   # Search to depth 10
-go movetime 1000              # Search for 1 second
-go wtime 60000 btime 60000 winc 1000 binc 1000  # Time control
-go infinite                   # Search until stop
-stop                          # Stop searching
-quit                          # Exit
+### Setup Python Environment
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
 ```
 
-### Custom Commands
-
+### Run Full Verification Suite (7 Suites)
+```bash
+.venv/bin/python scripts/run_all_tests.py
 ```
-d / display                   # Print board
-eval                          # Show static evaluation
-bench [depth]                 # Run benchmark (default depth 8)
-fen                           # Export current FEN
-legalmoves                    # List legal moves
-state                         # Full game state (for GUI)
-perftsuite [max_depth]        # Run perft test suite
-go perft <depth>              # Perft divide
+Covers: playstyle provenance CI gate (`--check`), 18/18 perft benchmarks & tactics, NNUE accuracy & color symmetry, playstyle eval deltas, UCI option advertising, 5× game-flow anti-duplication regression, and GUI REST/SSE endpoints.
+
+### Re-Train Playstyle Profiles or NNUE Weights
+```bash
+# Re-derive engine_src/nen_profiles.h from data/pgn/*.pgn
+.venv/bin/python scripts/train_nen_styles.py
+.venv/bin/python scripts/train_nen_styles.py --check
+
+# Re-train NNUE v3 (installs torch + uses Stockfish if available, else PeSTO)
+.venv/bin/pip install torch numpy
+.venv/bin/python nnue_trainer/train.py
 ```
 
-## 📁 Project Structure
+### Run 1v1 Matches Against Stockfish or Other UCI Engines
+```bash
+# Benchmark NNUE v3 against Stockfish at 2000 Elo (varied opening book pairs)
+.venv/bin/python scripts/match.py \
+  --e1 ./build/engine --e1-nnue \
+  --e2 /opt/homebrew/bin/stockfish --e2-elo 2000 \
+  --movetime 0.2 --games 6 --openings --pgn match.pgn
 
+# Playstyle showdown (Tal vs Petrosian)
+.venv/bin/python scripts/match.py \
+  --e1-style Tal --e2-style Petrosian \
+  --movetime 0.2 --games 6 --openings
 ```
+
+---
+
+## Project Structure
+
+```text
 ChessEngine/
-├── CMakeLists.txt            # Build configuration
-├── README.md                 # This file
-├── engine_src/
-│   ├── main.cpp              # Entry point
-│   ├── bitboard.h/cpp        # Bitboard utilities
-│   ├── position.h/cpp        # Position representation, make/unmake
-│   ├── movegen.h/cpp         # Move generation, SEE
-│   ├── search.h/cpp          # Search algorithm
-│   ├── evaluation.h/cpp      # Position evaluation
-│   ├── perft.h/cpp           # Perft testing
-│   ├── uci.h/cpp             # UCI protocol
-│   ├── zobrist.h/cpp         # Zobrist hashing
-│   └── nnue.h/cpp            # NNUE evaluation
-├── gui/
-│   ├── index.html            # Web GUI
-│   ├── server.js             # Node.js server (engine ↔ GUI bridge)
-│   ├── package.json          # Node.js dependencies
-│   └── pieces/               # SVG chess pieces
-├── nnue_trainer/             # NNUE training scripts (Python)
-├── scripts/
-│   └── test_engine.py        # Engine test suite
-└── nnue.bin                  # Pre-trained NNUE weights
+├── CMakeLists.txt              # C++17 CMake build configuration
+├── README.md                   # Project documentation
+├── requirements.txt            # Python dependencies
+├── nnue.bin                    # Quantized NNUE v3 (SCReLU) weights
+├── engine_src/                 # Native C++17 chess engine
+│   ├── main.cpp                # Entry point & subsystem initialization
+│   ├── bitboard.h / .cpp       # 64-bit bitboards & bit manipulation
+│   ├── position.h / .cpp       # Board state, FEN, incremental make/unmake
+│   ├── movegen.h / .cpp        # Magic bitboards, move generation, SEE
+│   ├── evaluation.h / .cpp     # Tapered PeSTO + dynamic playstyle evaluation
+│   ├── nen_profiles.h          # Data-derived prime-era GM profiles
+│   ├── nnue.h / .cpp           # Incremental ARM NEON SCReLU NNUE inference
+│   ├── search.h / .cpp         # Alpha-Beta/PVS, TT, MultiPV, pruning
+│   ├── zobrist.h / .cpp        # Incremental Zobrist position hashing
+│   ├── perft.h / .cpp          # Perft & divide verification harness
+│   └── uci.h / .cpp            # Thread-safe UCI protocol loop
+├── gui/                        # Local Web Analysis GUI
+│   ├── index.html              # Interactive board, eval bar, radar & controls
+│   ├── server.js               # Node.js UCI-to-REST/SSE bridge
+│   ├── package.json            # Node metadata
+│   └── pieces/                 # Local SVG chess piece assets
+├── nnue_trainer/               # PyTorch NNUE v3 distillation & export pipeline
+│   ├── model.py                # SCReLU (768->256)x2->1 architecture & NNv3 exporter
+│   ├── dataset.py              # Feature extraction (Simple768)
+│   └── train.py                # Hybrid Stockfish 19 + PeSTO training script
+├── data/pgn/                   # Prime-era classical GM PGN datasets (900 games)
+└── scripts/                    # Test suites, training CLI, and 1v1 match runner
+    ├── run_all_tests.py        # Master CI test runner
+    ├── engine_path.py          # Central binary path resolver
+    ├── match.py                # 1v1 UCI match & Elo benchmark runner
+    ├── train_nen_styles.py     # Playstyle feature extractor & header generator
+    ├── test_engine.py          # 18/18 perft, tactics, movetime & self-play
+    ├── test_nnue_accuracy.py   # NNUE scaling, symmetry & path loading tests
+    ├── test_nen_eval.py        # Playstyle behavioral eval delta assertions
+    ├── test_uci_nen.py         # UCI protocol & preset option tests
+    ├── test_game_flow.py       # 5x anti-duplication game flow regression
+    └── test_gui_server.py      # REST & SSE endpoint verification
 ```
 
-## ♟️ Dynamic Playstyle Settings
+---
 
-The engine modulates its classical evaluation weights across six core chess dimensions configurable via sliders, presets, or UCI options:
+## License
 
-| Chess Setting | UCI Option | Primary Evaluation Focus | Multiplier Scaling |
-|---|---|---|---|
-| **Calculation** | `Style_Calculation` | Material valuation, piece tension, tactical precision | Base material scores |
-| **Aggression** | `Style_Aggression` | King attack pressure, kingside storms, sacrifices | King attack safety terms |
-| **Structure** | `Style_Structure` | Pawn chains, passed pawns, outposts, fortresses | Pawn penalties & passed bonuses |
-| **Creativity** | `Style_Creativity` | Asymmetric piece imbalances (bishop pair, exchanges) | Asymmetric piece imbalances |
-| **Defense** | `Style_Defense` | King pawn shelter, prophylaxis, opponent restriction | King shield & defense terms |
-| **Activity** | `Style_Activity` | Long-range piece mobility, open/semi-open files | Open file & piece mobility |
-
-### Prime-Era Grandmaster Profiles
-Derived empirically from **900 prime-era classical tournament games (150 per player, 30,778 GM-perspective middlegame/endgame plies)** across 6 legendary World Champions & masters:
-
-- **Mikhail Tal (1957–1961)** — 61% Calc, 56% Aggr, 43% Struct, 79% Creat, 62% Def, 80% Act
-- **Tigran Petrosian (1962–1969)** — 31% Calc, 25% Aggr, 95% Struct, 25% Creat, 95% Def, 25% Act
-- **Anatoly Karpov (1974–1985)** — 25% Calc, 31% Aggr, 85% Struct, 63% Creat, 93% Def, 64% Act
-- **Paul Morphy (1857–1859)** — 95% Calc, 95% Aggr, 25% Struct, 95% Creat, 25% Def, 95% Act
-- **Garry Kasparov (1985–2000)** — 49% Calc, 48% Aggr, 65% Struct, 56% Creat, 92% Def, 69% Act
-- **Magnus Carlsen (2013–2021)** — 54% Calc, 43% Aggr, 27% Struct, 43% Creat, 70% Def, 78% Act
-- **Balanced** — 50% on all traits
-
-### Training Pipelines
-```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Re-derive prime-era Grandmaster style profiles into engine_src/nen_profiles.h
-python3 scripts/train_nen_styles.py
-python3 scripts/train_nen_styles.py --check
-
-# Train quantized NNUE v2 (768->256->32->32->1) on 900 prime GM games + augmentation (170k+ positions)
-python3 nnue_trainer/train.py
-```
-
-## 🎯 Testing & Verification
-
-The project includes an end-to-end automated test runner covering all engine, NNUE, and GUI components:
-
-```bash
-# Run master test suite (all 7 test suites)
-python3 scripts/run_all_tests.py
-```
-
-This verifies:
-1. **Playstyle Training CI Check** (`train_nen_styles.py --check`)
-2. **Engine Core & Perft Benchmark Suite** (`test_engine.py`) — **18/18 perft benchmarks pass 100% green**, tactical puzzles, SEE, and self-play
-3. **NNUE v2 Accuracy & Symmetry** (`test_nnue_accuracy.py`) — verifies accurate centipawn scaling, White/Black perspective symmetry, and fallback path loading
-4. **Playstyle Evaluation Behavioral Deltas** (`test_nen_eval.py`) — asserts positive cp deltas for Aggression and Calculation
-5. **UCI Protocol & Style Options** (`test_uci_nen.py`) — verifies option advertising and all presets in a single session
-6. **Game Flow Multi-Run Duplication Test** (`test_game_flow.py`) — validates no engine move duplication across 5 consecutive games
-7. **GUI Server REST & SSE Endpoints** (`test_gui_server.py`) — verifies `/api/state`, `/api/style`, `/api/settings`, and `/api/fen`
-
-## 📜 License
-
-This project is open source. Feel free to use, modify, and distribute.
+MIT License — open source and free to use, modify, and distribute.

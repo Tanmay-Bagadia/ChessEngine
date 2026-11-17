@@ -17,9 +17,10 @@ venv/
 node_modules/
 npm-debug.log*
 
-# System & Editor files
+# System, Editor & Local Notes
 .DS_Store
 .vscode/
 .idea/
 .cache/
 .superpowers/
+PROJECT_WALKTHROUGH.md
