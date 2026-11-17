@@ -5,11 +5,13 @@ bin/
 *.obj
 engine_src/engine
 
-# Python cache
+# Python cache & virtual environments
 __pycache__/
 *.py[cod]
 *$py.class
 .pytest_cache/
+.venv/
+venv/
 
 # Node.js
 node_modules/
