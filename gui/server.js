@@ -44,6 +44,7 @@ let styleProfile = {
     aggression: 50,
     structure: 50,
     creativity: 50,
+    defense: 50,
     prophylaxis: 50,
     activity: 50,
     enhancement: 50,
@@ -56,13 +57,13 @@ let styleProfile = {
 let currentPreset = 'Balanced';
 
 const PRESETS = {
-    'Tal': { calculation: 68, aggression: 70, structure: 40, creativity: 56, prophylaxis: 58, activity: 62 },
-    'Petrosian': { calculation: 25, aggression: 61, structure: 59, creativity: 61, prophylaxis: 76, activity: 79 },
-    'Karpov': { calculation: 28, aggression: 79, structure: 30, creativity: 95, prophylaxis: 81, activity: 25 },
-    'Morphy': { calculation: 95, aggression: 95, structure: 39, creativity: 25, prophylaxis: 25, activity: 67 },
-    'Kasparov': { calculation: 50, aggression: 54, structure: 25, creativity: 85, prophylaxis: 76, activity: 90 },
-    'Carlsen': { calculation: 66, aggression: 25, structure: 95, creativity: 75, prophylaxis: 95, activity: 95 },
-    'Balanced': { calculation: 50, aggression: 50, structure: 50, creativity: 50, prophylaxis: 50, activity: 50 }
+    'Tal':       { calculation: 61, aggression: 56, structure: 43, creativity: 79, defense: 62, prophylaxis: 62, activity: 80 },
+    'Petrosian': { calculation: 31, aggression: 25, structure: 95, creativity: 25, defense: 95, prophylaxis: 95, activity: 25 },
+    'Karpov':    { calculation: 25, aggression: 31, structure: 85, creativity: 63, defense: 93, prophylaxis: 93, activity: 64 },
+    'Morphy':    { calculation: 95, aggression: 95, structure: 25, creativity: 95, defense: 25, prophylaxis: 25, activity: 95 },
+    'Kasparov':  { calculation: 49, aggression: 48, structure: 65, creativity: 56, defense: 92, prophylaxis: 92, activity: 69 },
+    'Carlsen':   { calculation: 54, aggression: 43, structure: 27, creativity: 43, defense: 70, prophylaxis: 70, activity: 78 },
+    'Balanced':  { calculation: 50, aggression: 50, structure: 50, creativity: 50, defense: 50, prophylaxis: 50, activity: 50 }
 };
 
 let engineStatus = {
@@ -451,8 +452,9 @@ const server = http.createServer(async (req, res) => {
                     'conjuration': 'Structure',
                     'creativity': 'Creativity',
                     'specialization': 'Creativity',
-                    'prophylaxis': 'Prophylaxis',
-                    'manipulation': 'Prophylaxis',
+                    'defense': 'Defense',
+                    'prophylaxis': 'Defense',
+                    'manipulation': 'Defense',
                     'activity': 'Activity',
                     'emission': 'Activity'
                 };
@@ -463,7 +465,7 @@ const server = http.createServer(async (req, res) => {
                         styleProfile[key] = val;
                         pendingStyleUpdates[key] = val;
 
-                        // Also sync pair alias
+                        // Also sync pair aliases
                         if (key === 'calculation') styleProfile.enhancement = val;
                         else if (key === 'enhancement') styleProfile.calculation = val;
                         else if (key === 'aggression') styleProfile.transmutation = val;
@@ -472,8 +474,11 @@ const server = http.createServer(async (req, res) => {
                         else if (key === 'conjuration') styleProfile.structure = val;
                         else if (key === 'creativity') styleProfile.specialization = val;
                         else if (key === 'specialization') styleProfile.creativity = val;
-                        else if (key === 'prophylaxis') styleProfile.manipulation = val;
-                        else if (key === 'manipulation') styleProfile.prophylaxis = val;
+                        else if (key === 'defense' || key === 'prophylaxis' || key === 'manipulation') {
+                            styleProfile.defense = val;
+                            styleProfile.prophylaxis = val;
+                            styleProfile.manipulation = val;
+                        }
                         else if (key === 'activity') styleProfile.emission = val;
                         else if (key === 'emission') styleProfile.activity = val;
                     }
@@ -663,6 +668,8 @@ const server = http.createServer(async (req, res) => {
 
                 if (playSettings.playAgainstEngine && gameState.side !== playSettings.playerColor && !gameState.mate && !gameState.stalemate) {
                     triggerEngineThink();
+                } else if (parsed.useNNUE !== undefined && !gameState.mate && !gameState.stalemate) {
+                    setTimeout(() => triggerLiveAnalysis(), 50);
                 }
             } catch (e) {
                 res.writeHead(400, { 'Content-Type': 'application/json' });

@@ -147,61 +147,60 @@ ChessEngine/
 └── nnue.bin                  # Pre-trained NNUE weights
 ```
 
-## 🔮 Nen Playstyle System
+## ♟️ Dynamic Playstyle Settings
 
-The engine features a dynamic persona and playstyle system inspired by the six Nen affinities from *Hunter × Hunter*. Instead of a rigid evaluation function, the engine dynamically modulates its evaluation weights across six fundamental dimensions:
+The engine modulates its classical evaluation weights across six core chess dimensions configurable via sliders, presets, or UCI options:
 
-| Affinity (Nen) | Kanji | Chess Trait | Primary Evaluation Focus | Multiplier Scaling |
-|---|---|---|---|---|
-| **Enhancement** | 強化 | **Calculation** | Material valuation, piece values, tactical sharpness | Base material scores |
-| **Transmutation** | 変化 | **Aggression** | King attack pressure, kingside storms, piece sacrifice initiative | King attack safety terms |
-| **Conjuration** | 具現化 | **Structure** | Pawn structure integrity, passed pawns, outposts, fortresses | Pawn penalties & passed bonuses |
-| **Specialization** | 特質 | **Creativity** | Imbalances (bishop pair, exchange sacrifices, unorthodox play) | Asymmetric piece imbalances |
-| **Manipulation** | 操作 | **Prophylaxis** | Suffocating opponent counterplay, king shelter, prophylaxis | Shield & opponent mobility restriction |
-| **Emission** | 放出 | **Activity** | Long-range piece activity, open/semi-open files, piece scope | Open file & long-range mobility |
+| Chess Setting | UCI Option | Primary Evaluation Focus | Multiplier Scaling |
+|---|---|---|---|
+| **Calculation** | `Style_Calculation` | Material valuation, piece tension, tactical precision | Base material scores |
+| **Aggression** | `Style_Aggression` | King attack pressure, kingside storms, sacrifices | King attack safety terms |
+| **Structure** | `Style_Structure` | Pawn chains, passed pawns, outposts, fortresses | Pawn penalties & passed bonuses |
+| **Creativity** | `Style_Creativity` | Asymmetric piece imbalances (bishop pair, exchanges) | Asymmetric piece imbalances |
+| **Defense** | `Style_Defense` | King pawn shelter, prophylaxis, opponent restriction | King shield & defense terms |
+| **Activity** | `Style_Activity` | Long-range piece mobility, open/semi-open files | Open file & piece mobility |
 
-### Calibrated Grandmaster Archetypes
-Derived from statistical feature analysis over **150 tournament games (10,619 total plies)** across 6 legendary Grandmasters:
+### Prime-Era Grandmaster Profiles
+Derived empirically from **900 prime-era classical tournament games (150 per player, 30,778 GM-perspective middlegame/endgame plies)** across 6 legendary World Champions & masters:
 
-- **Mikhail Tal** (68% Calc, 70% Aggr, 40% Struct, 56% Creat, 58% Proph, 62% Act)
-- **Tigran Petrosian** (25% Calc, 61% Aggr, 59% Struct, 61% Creat, 76% Proph, 79% Act)
-- **Anatoly Karpov** (28% Calc, 79% Aggr, 30% Struct, 95% Creat, 81% Proph, 25% Act)
-- **Paul Morphy** (95% Calc, 95% Aggr, 39% Struct, 25% Creat, 25% Proph, 67% Act)
-- **Garry Kasparov** (50% Calc, 54% Aggr, 25% Struct, 85% Creat, 76% Proph, 90% Act)
-- **Magnus Carlsen** (66% Calc, 25% Aggr, 95% Struct, 75% Creat, 95% Proph, 95% Act)
-- **Balanced Nen** (50% on all traits)
+- **Mikhail Tal (1957–1961)** — 61% Calc, 56% Aggr, 43% Struct, 79% Creat, 62% Def, 80% Act
+- **Tigran Petrosian (1962–1969)** — 31% Calc, 25% Aggr, 95% Struct, 25% Creat, 95% Def, 25% Act
+- **Anatoly Karpov (1974–1985)** — 25% Calc, 31% Aggr, 85% Struct, 63% Creat, 93% Def, 64% Act
+- **Paul Morphy (1857–1859)** — 95% Calc, 95% Aggr, 25% Struct, 95% Creat, 25% Def, 95% Act
+- **Garry Kasparov (1985–2000)** — 49% Calc, 48% Aggr, 65% Struct, 56% Creat, 92% Def, 69% Act
+- **Magnus Carlsen (2013–2021)** — 54% Calc, 43% Aggr, 27% Struct, 43% Creat, 70% Def, 78% Act
+- **Balanced** — 50% on all traits
 
-For full mathematical definitions, mappings, and formulas, see [docs/nen_system.md](file:///Users/tanmay1301/projects/ChessEngine/docs/nen_system.md).
-
-### Training Pipeline
-The training pipeline processes PGN databases in `data/pgn/*.pgn` using `python-chess`:
+### Training Pipelines
 ```bash
 # Install dependencies
 pip install -r requirements.txt
 
-# Run the training pipeline and derive nen_profiles.h
+# Re-derive prime-era Grandmaster style profiles into engine_src/nen_profiles.h
 python3 scripts/train_nen_styles.py
-
-# Verify committed header matches data derivation (CI check)
 python3 scripts/train_nen_styles.py --check
+
+# Train quantized NNUE v2 (768->256->32->32->1) on 900 prime GM games + augmentation (170k+ positions)
+python3 nnue_trainer/train.py
 ```
 
 ## 🎯 Testing & Verification
 
-The project includes an end-to-end automated test runner covering all engine and GUI components:
+The project includes an end-to-end automated test runner covering all engine, NNUE, and GUI components:
 
 ```bash
-# Run master test suite (all 6 test suites)
+# Run master test suite (all 7 test suites)
 python3 scripts/run_all_tests.py
 ```
 
 This verifies:
-1. **Nen Training CI Check** (`train_nen_styles.py --check`)
-2. **Engine Core & Perft Benchmark Suite** (`test_engine.py`) — **18/18 perft benchmarks pass 100% green** (Startpos 1-5, Kiwipete 1-4, Pos 3 1-3, Pos 4 1-3, Pos 5 1-3), tactical puzzles, SEE, and self-play
-3. **Nen Evaluation Behavioral Deltas** (`test_nen_eval.py`) — asserts positive cp deltas for Aggression (+16 cp) and Enhancement (+394 cp)
-4. **UCI Protocol & Style/Nen Options** (`test_uci_nen.py`) — verifies option advertising and all 14 presets in a single session
-5. **Game Flow Multi-Run Duplication Test** (`test_game_flow.py`) — validates no engine move duplication or corruption across 5 consecutive games
-6. **GUI Server REST & SSE Endpoints** (`test_gui_server.py`) — verifies `/api/state`, `/api/style`, `/api/nen`, `/api/settings`, and `/api/fen`
+1. **Playstyle Training CI Check** (`train_nen_styles.py --check`)
+2. **Engine Core & Perft Benchmark Suite** (`test_engine.py`) — **18/18 perft benchmarks pass 100% green**, tactical puzzles, SEE, and self-play
+3. **NNUE v2 Accuracy & Symmetry** (`test_nnue_accuracy.py`) — verifies accurate centipawn scaling, White/Black perspective symmetry, and fallback path loading
+4. **Playstyle Evaluation Behavioral Deltas** (`test_nen_eval.py`) — asserts positive cp deltas for Aggression and Calculation
+5. **UCI Protocol & Style Options** (`test_uci_nen.py`) — verifies option advertising and all presets in a single session
+6. **Game Flow Multi-Run Duplication Test** (`test_game_flow.py`) — validates no engine move duplication across 5 consecutive games
+7. **GUI Server REST & SSE Endpoints** (`test_gui_server.py`) — verifies `/api/state`, `/api/style`, `/api/settings`, and `/api/fen`
 
 ## 📜 License
 

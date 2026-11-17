@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chess Engine — Nen Persona & Modern Analysis</title>
+    <title>Chess Engine — Playstyle Settings & Modern Analysis</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -1026,13 +1026,13 @@
                 </div>
             </section>
 
-            <!-- 2. Playstyle Matrix Card (Hero Component) -->
+            <!-- 2. Playstyle Settings Card (Hero Component) -->
             <section class="card nen-card">
                 <div class="nen-aura-glow" id="nen-aura"></div>
                 <div class="card-header" style="position: relative; z-index: 1;">
                     <div style="display: flex; align-items: baseline; gap: 8px;">
-                        <span class="card-title">NEN PERSONA</span>
-                        <span class="card-subtitle" id="nen-persona-subtitle" style="font-size: 11px; color: var(--text-muted);">Balanced Nen</span>
+                        <span class="card-title">PLAYSTYLE SETTINGS</span>
+                        <span class="card-subtitle" id="nen-persona-subtitle" style="font-size: 11px; color: var(--text-muted);">Balanced Style</span>
                     </div>
                     <button style="padding: 2px 8px; font-size: 10px;" onclick="resetStyleProfile()">Reset</button>
                 </div>
@@ -1070,98 +1070,92 @@
                         <circle id="dot-aggression" cx="170" cy="107" r="3.5" fill="#fff" stroke="#9B5CFF" stroke-width="2"/>
                         <circle id="dot-structure" cx="170" cy="153" r="3.5" fill="#fff" stroke="#F59E0B" stroke-width="2"/>
                         <circle id="dot-creativity" cx="130" cy="176" r="3.5" fill="#fff" stroke="#06B6D4" stroke-width="2"/>
-                        <circle id="dot-prophylaxis" cx="90" cy="153" r="3.5" fill="#fff" stroke="#10B981" stroke-width="2"/>
+                        <circle id="dot-defense" cx="90" cy="153" r="3.5" fill="#fff" stroke="#10B981" stroke-width="2"/>
                         <circle id="dot-activity" cx="90" cy="107" r="3.5" fill="#fff" stroke="#EF4444" stroke-width="2"/>
 
-                        <!-- Dual Kanji + Romaji Attribute Labels -->
-                        <text x="130" y="16" text-anchor="middle" fill="#3B82F6" font-size="12" font-weight="700">強化</text>
-                        <text x="130" y="27" text-anchor="middle" fill="var(--text-sub)" font-size="8.5" font-weight="600">ENHANCEMENT</text>
+                        <!-- Chess Playstyle Axis Labels -->
+                        <text x="130" y="22" text-anchor="middle" fill="#3B82F6" font-size="9.5" font-weight="700">CALCULATION</text>
 
-                        <text x="216" y="78" text-anchor="start" fill="#9B5CFF" font-size="12" font-weight="700">変化</text>
-                        <text x="216" y="89" text-anchor="start" fill="var(--text-sub)" font-size="8" font-weight="600">TRANSMUTATION</text>
+                        <text x="214" y="84" text-anchor="start" fill="#9B5CFF" font-size="9" font-weight="700">AGGRESSION</text>
 
-                        <text x="216" y="174" text-anchor="start" fill="#F59E0B" font-size="12" font-weight="700">具現化</text>
-                        <text x="216" y="185" text-anchor="start" fill="var(--text-sub)" font-size="8" font-weight="600">CONJURATION</text>
+                        <text x="214" y="180" text-anchor="start" fill="#F59E0B" font-size="9" font-weight="700">STRUCTURE</text>
 
-                        <text x="130" y="238" text-anchor="middle" fill="#06B6D4" font-size="12" font-weight="700">特質</text>
-                        <text x="130" y="249" text-anchor="middle" fill="var(--text-sub)" font-size="8.5" font-weight="600">SPECIALIZATION</text>
+                        <text x="130" y="244" text-anchor="middle" fill="#06B6D4" font-size="9.5" font-weight="700">CREATIVITY</text>
 
-                        <text x="44" y="174" text-anchor="end" fill="#10B981" font-size="12" font-weight="700">操作</text>
-                        <text x="44" y="185" text-anchor="end" fill="var(--text-sub)" font-size="8" font-weight="600">MANIPULATION</text>
+                        <text x="46" y="180" text-anchor="end" fill="#10B981" font-size="9" font-weight="700">DEFENSE</text>
 
-                        <text x="44" y="78" text-anchor="end" fill="#EF4444" font-size="12" font-weight="700">放出</text>
-                        <text x="44" y="89" text-anchor="end" fill="var(--text-sub)" font-size="8" font-weight="600">EMISSION</text>
+                        <text x="46" y="84" text-anchor="end" fill="#EF4444" font-size="9" font-weight="700">ACTIVITY</text>
                     </svg>
                 </div>
 
-                <!-- 6 Continuous Precision Sliders with Dual Labels -->
+                <!-- 6 Continuous Playstyle Sliders -->
                 <div class="nen-sliders-list">
-                    <!-- Enhancement / Calculation -->
+                    <!-- Calculation -->
                     <div class="nen-slider-row">
                         <div class="slider-labels-row">
                             <div class="slider-left-labels">
-                                <span class="nen-kanji" style="color: #3B82F6;">強化 ENHANCEMENT</span>
-                                <span class="nen-romaji">Calculation & Material</span>
+                                <span class="nen-kanji" style="color: #3B82F6;">CALCULATION</span>
+                                <span class="nen-romaji">Material & Precision</span>
                             </div>
                             <span class="slider-val" id="val-calculation">50%</span>
                         </div>
                         <input type="range" id="slider-calculation" min="0" max="100" value="50" oninput="onStyleSliderInput('calculation', this.value)">
                     </div>
 
-                    <!-- Transmutation / Aggression -->
+                    <!-- Aggression -->
                     <div class="nen-slider-row">
                         <div class="slider-labels-row">
                             <div class="slider-left-labels">
-                                <span class="nen-kanji" style="color: #9B5CFF;">変化 TRANSMUTATION</span>
-                                <span class="nen-romaji">Aggression & Sacrifices</span>
+                                <span class="nen-kanji" style="color: #9B5CFF;">AGGRESSION</span>
+                                <span class="nen-romaji">King Attacks & Sacrifices</span>
                             </div>
                             <span class="slider-val" id="val-aggression">50%</span>
                         </div>
                         <input type="range" id="slider-aggression" min="0" max="100" value="50" oninput="onStyleSliderInput('aggression', this.value)">
                     </div>
 
-                    <!-- Conjuration / Structure -->
+                    <!-- Structure -->
                     <div class="nen-slider-row">
                         <div class="slider-labels-row">
                             <div class="slider-left-labels">
-                                <span class="nen-kanji" style="color: #F59E0B;">具現化 CONJURATION</span>
-                                <span class="nen-romaji">Structure & Outposts</span>
+                                <span class="nen-kanji" style="color: #F59E0B;">STRUCTURE</span>
+                                <span class="nen-romaji">Pawn Chains & Outposts</span>
                             </div>
                             <span class="slider-val" id="val-structure">50%</span>
                         </div>
                         <input type="range" id="slider-structure" min="0" max="100" value="50" oninput="onStyleSliderInput('structure', this.value)">
                     </div>
 
-                    <!-- Specialization / Creativity -->
+                    <!-- Creativity -->
                     <div class="nen-slider-row">
                         <div class="slider-labels-row">
                             <div class="slider-left-labels">
-                                <span class="nen-kanji" style="color: #06B6D4;">特質 SPECIALIZATION</span>
-                                <span class="nen-romaji">Creativity & Imbalance</span>
+                                <span class="nen-kanji" style="color: #06B6D4;">CREATIVITY</span>
+                                <span class="nen-romaji">Imbalance & Dynamics</span>
                             </div>
                             <span class="slider-val" id="val-creativity">50%</span>
                         </div>
                         <input type="range" id="slider-creativity" min="0" max="100" value="50" oninput="onStyleSliderInput('creativity', this.value)">
                     </div>
 
-                    <!-- Manipulation / Prophylaxis -->
+                    <!-- Defense -->
                     <div class="nen-slider-row">
                         <div class="slider-labels-row">
                             <div class="slider-left-labels">
-                                <span class="nen-kanji" style="color: #10B981;">操作 MANIPULATION</span>
-                                <span class="nen-romaji">Prophylaxis & Control</span>
+                                <span class="nen-kanji" style="color: #10B981;">DEFENSE</span>
+                                <span class="nen-romaji">King Safety & Control</span>
                             </div>
-                            <span class="slider-val" id="val-prophylaxis">50%</span>
+                            <span class="slider-val" id="val-defense">50%</span>
                         </div>
-                        <input type="range" id="slider-prophylaxis" min="0" max="100" value="50" oninput="onStyleSliderInput('prophylaxis', this.value)">
+                        <input type="range" id="slider-defense" min="0" max="100" value="50" oninput="onStyleSliderInput('defense', this.value)">
                     </div>
 
-                    <!-- Emission / Activity -->
+                    <!-- Activity -->
                     <div class="nen-slider-row">
                         <div class="slider-labels-row">
                             <div class="slider-left-labels">
-                                <span class="nen-kanji" style="color: #EF4444;">放出 EMISSION</span>
-                                <span class="nen-romaji">Activity & Mobility</span>
+                                <span class="nen-kanji" style="color: #EF4444;">ACTIVITY</span>
+                                <span class="nen-romaji">Piece Mobility & Open Files</span>
                             </div>
                             <span class="slider-val" id="val-activity">50%</span>
                         </div>
@@ -1169,7 +1163,7 @@
                     </div>
                 </div>
 
-                <!-- GM Archetype Preset Chips -->
+                <!-- Prime-Era GM Preset Chips -->
                 <div class="preset-chips-grid">
                     <button class="preset-chip" onclick="applyPreset('Tal')">
                         <span class="affinity-dot" style="background: #9B5CFF;"></span>
@@ -1197,7 +1191,7 @@
                     </button>
                     <button class="preset-chip active" onclick="applyPreset('Balanced')">
                         <span class="affinity-dot" style="background: var(--text-muted);"></span>
-                        Balanced Nen
+                        Balanced
                     </button>
                 </div>
             </section>
@@ -1222,7 +1216,7 @@
                             <button type="button" class="segmented-btn active" id="btn-eval-pesto" onclick="setEvalEngine(false)">PESTO (Classical)</button>
                             <button type="button" class="segmented-btn" id="btn-eval-nnue" onclick="setEvalEngine(true)">NNUE</button>
                         </div>
-                        <div class="settings-helper-text">Changing a Nen slider switches to Classical automatically</div>
+                        <div class="settings-helper-text">Changing a playstyle slider switches to Classical automatically</div>
                     </div>
                     <div>
                         <div style="font-size: 11px; font-weight: 700; color: var(--text-sub); margin-bottom: 6px;">LOAD CUSTOM FEN</div>
@@ -1274,19 +1268,19 @@
             aggression: 50,
             structure: 50,
             creativity: 50,
-            prophylaxis: 50,
+            defense: 50,
             activity: 50
         };
         let currentPreset = 'Balanced';
 
         const PRESETS = {
-            'Tal': { calculation: 68, aggression: 70, structure: 40, creativity: 56, prophylaxis: 58, activity: 62 },
-            'Petrosian': { calculation: 25, aggression: 61, structure: 59, creativity: 61, prophylaxis: 76, activity: 79 },
-            'Karpov': { calculation: 28, aggression: 79, structure: 30, creativity: 95, prophylaxis: 81, activity: 25 },
-            'Morphy': { calculation: 95, aggression: 95, structure: 39, creativity: 25, prophylaxis: 25, activity: 67 },
-            'Kasparov': { calculation: 50, aggression: 54, structure: 25, creativity: 85, prophylaxis: 76, activity: 90 },
-            'Carlsen': { calculation: 66, aggression: 25, structure: 95, creativity: 75, prophylaxis: 95, activity: 95 },
-            'Balanced': { calculation: 50, aggression: 50, structure: 50, creativity: 50, prophylaxis: 50, activity: 50 }
+            'Tal':       { calculation: 61, aggression: 56, structure: 43, creativity: 79, defense: 62, activity: 80 },
+            'Petrosian': { calculation: 31, aggression: 25, structure: 95, creativity: 25, defense: 95, activity: 25 },
+            'Karpov':    { calculation: 25, aggression: 31, structure: 85, creativity: 63, defense: 93, activity: 64 },
+            'Morphy':    { calculation: 95, aggression: 95, structure: 25, creativity: 95, defense: 25, activity: 95 },
+            'Kasparov':  { calculation: 49, aggression: 48, structure: 65, creativity: 56, defense: 92, activity: 69 },
+            'Carlsen':   { calculation: 54, aggression: 43, structure: 27, creativity: 43, defense: 70, activity: 78 },
+            'Balanced':  { calculation: 50, aggression: 50, structure: 50, creativity: 50, defense: 50, activity: 50 }
         };
 
         // Initialize Board Matrix from FEN
@@ -1653,26 +1647,30 @@
             const degToRad = Math.PI / 180;
 
             // Vertices order (Clockwise from top):
-            // 0: Calculation (Top: -90 deg) -> Blue #3B82F6 (Enhancement / 強化)
-            // 1: Aggression (Top-Right: -30 deg) -> Purple #9B5CFF (Transmutation / 変化)
-            // 2: Structure (Bottom-Right: 30 deg) -> Amber #F59E0B (Conjuration / 具現化)
-            // 3: Creativity (Bottom: 90 deg) -> Cyan #06B6D4 (Specialization / 特質)
-            // 4: Prophylaxis (Bottom-Left: 150 deg) -> Green #10B981 (Manipulation / 操作)
-            // 5: Activity (Top-Left: 210 deg) -> Red #EF4444 (Emission / 放出)
+            // 0: Calculation (Top: -90 deg) -> Blue #3B82F6
+            // 1: Aggression (Top-Right: -30 deg) -> Purple #9B5CFF
+            // 2: Structure (Bottom-Right: 30 deg) -> Amber #F59E0B
+            // 3: Creativity (Bottom: 90 deg) -> Cyan #06B6D4
+            // 4: Defense (Bottom-Left: 150 deg) -> Green #10B981
+            // 5: Activity (Top-Left: 210 deg) -> Red #EF4444
             const angles = [-90, -30, 30, 90, 150, 210];
             const ids = [
                 'calculation',
                 'aggression',
                 'structure',
                 'creativity',
-                'prophylaxis',
+                'defense',
                 'activity'
             ];
-            const affinityColors = ['#3B82F6', '#9B5CFF', '#F59E0B', '#06B6D4', '#10B981', '#EF4444'];
-            const affinityKanji = ['強化', '変化', '具現化', '特質', '操作', '放出'];
-            const affinityRomaji = ['Enhancement', 'Transmutation', 'Conjuration', 'Specialization', 'Manipulation', 'Emission'];
+            const traitColors = ['#3B82F6', '#9B5CFF', '#F59E0B', '#06B6D4', '#10B981', '#EF4444'];
+            const traitLabels = ['Calculation', 'Aggression', 'Structure', 'Creativity', 'Defense', 'Activity'];
 
-            const vals = ids.map(id => styleProfile[id] !== undefined ? styleProfile[id] : 50);
+            const vals = ids.map(id => {
+                if (id === 'defense') {
+                    return styleProfile.defense !== undefined ? styleProfile.defense : (styleProfile.prophylaxis !== undefined ? styleProfile.prophylaxis : 50);
+                }
+                return styleProfile[id] !== undefined ? styleProfile[id] : 50;
+            });
 
             const points = [];
             for (let i = 0; i < 6; i++) {
@@ -1696,10 +1694,11 @@
                 if (label) label.textContent = `${vals[i]}%`;
             }
 
-            // Dominant Affinity Styling
+            // Dominant Trait Styling
             const maxVal = Math.max(...vals);
             const maxIdx = vals.indexOf(maxVal);
-            const dominantColor = affinityColors[maxIdx];
+            const allEqual = vals.every(v => v === vals[0]);
+            const dominantColor = allEqual ? '#3B82F6' : traitColors[maxIdx];
 
             const poly = document.getElementById('radar-val-poly');
             if (poly) {
@@ -1719,10 +1718,12 @@
 
             const subtitle = document.getElementById('nen-persona-subtitle');
             if (subtitle) {
-                if (currentPreset && currentPreset !== 'Custom') {
-                    subtitle.textContent = `${currentPreset} Nen · ${affinityKanji[maxIdx]} (${affinityRomaji[maxIdx]})`;
+                if (currentPreset === 'Balanced' && allEqual) {
+                    subtitle.textContent = 'Balanced Style';
+                } else if (currentPreset && currentPreset !== 'Custom') {
+                    subtitle.textContent = `${currentPreset} Style · ${traitLabels[maxIdx]}`;
                 } else {
-                    subtitle.textContent = `Custom Persona · ${affinityKanji[maxIdx]} (${affinityRomaji[maxIdx]})`;
+                    subtitle.textContent = `Custom Style · ${traitLabels[maxIdx]}`;
                 }
             }
         }
